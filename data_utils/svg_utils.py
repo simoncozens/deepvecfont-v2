@@ -1042,7 +1042,7 @@ def create_example(pathunibfp):
     path = _canonicalize(path)
 
     # render path for training
-    final["rendered"] = _per_step_render(path, absolute=True)
+    # final["rendered"] = _per_step_render(path, absolute=True)
 
     # make path relative
     # path = _make_relative(path)
@@ -1072,9 +1072,9 @@ def create_example(pathunibfp):
 
     # make pure list:
     # use last channel only
-    final["rendered"] = (
-        np.reshape(final["rendered"][..., 0], [64 * 64]).astype(np.float32).tolist()
-    )
+    # final["rendered"] = (
+    #     np.reshape(final["rendered"][..., 0], [64 * 64]).astype(np.float32).tolist()
+    # )
     final["sequence"] = (
         np.reshape(final["sequence"], [(MAX_SEQ_LEN + 1) * 10])
         .astype(np.float32)
