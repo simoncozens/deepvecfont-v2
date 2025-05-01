@@ -213,30 +213,6 @@ def train_main_model(opts):
     logfile_val.close()
 
 
-def backup_code(name_exp):
-    os.makedirs(os.path.join("experiments", name_exp, "code"), exist_ok=True)
-    shutil.copy(
-        "models/transformers.py",
-        os.path.join("experiments", name_exp, "code", "transformers.py"),
-    )
-    shutil.copy(
-        "models/model_main.py",
-        os.path.join("experiments", name_exp, "code", "model_main.py"),
-    )
-    shutil.copy(
-        "models/image_encoder.py",
-        os.path.join("experiments", name_exp, "code", "image_encoder.py"),
-    )
-    shutil.copy(
-        "models/image_decoder.py",
-        os.path.join("experiments", name_exp, "code", "image_decoder.py"),
-    )
-    shutil.copy("./train.py", os.path.join("experiments", name_exp, "code", "train.py"))
-    shutil.copy(
-        "./options.py", os.path.join("experiments", name_exp, "code", "options.py")
-    )
-
-
 def train(opts):
     if opts.model_name == "main_model":
         train_main_model(opts)
@@ -252,7 +228,6 @@ def main():
     debug = True
     # Create directories
     experiment_dir = os.path.join("./experiments", opts.name_exp)
-    backup_code(opts.name_exp)
     os.makedirs(
         experiment_dir, exist_ok=debug
     )  # False to prevent multiple train run by mistake
