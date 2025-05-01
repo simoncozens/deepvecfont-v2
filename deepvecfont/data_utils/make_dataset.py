@@ -8,6 +8,7 @@ import tqdm
 
 from deepvecfont.data_utils import svg_utils
 from deepvecfont.data_utils.extract_path import extract_path, make_hb_font
+from deepvecfont.data_utils.relax_rep import cal_aux_bezier_pts, relax_a_character
 from deepvecfont.data_utils.svg_utils import MAX_SEQ_LEN
 from deepvecfont.options import add_language_arg, get_charset
 
@@ -41,6 +42,7 @@ def create_db(opts, output_path, log_path):
         char_class = []
         rendered = []
         ok = True
+        relaxed = []
         for charid, char in enumerate(charset):
             example = cur_font_glyphs[charid]
             sequence.append(example["sequence"])
@@ -53,6 +55,12 @@ def create_db(opts, output_path, log_path):
                 ok = False
                 break
             rendered.append(rendering)
+
+            this_sequence = np.array(example["sequence"]).reshape((MAX_SEQ_LEN + 1), -1)
+            cmd = this_sequence[:, :4]
+            args = this_sequence[:, 4:]
+            relaxed.append(relax_a_character(example["seq_len"][0], cmd, args))
+
         binaryfp = i
         if not ok:
             print("skipping font (rendering failure)", font_path)
@@ -69,6 +77,10 @@ def create_db(opts, output_path, log_path):
         np.save(output_dir / "class.npy", np.array(char_class))
         np.save(output_dir / "font_id.npy", np.array(binaryfp))
         np.save(output_dir / f"rendered_{opts.img_size}.npy", rendered)
+        relaxed = np.array(relaxed)
+        np.save(output_dir / "sequence_relaxed.npy", relaxed.reshape(len(charset), -1))
+        pts_aux = cal_aux_bezier_pts(relaxed, len(charset))
+        np.save(output_dir / "pts_aux.npy", pts_aux)
 
     print(
         "Finished processing all sfd files, logs (invalid glyphs and paths) are saved to",

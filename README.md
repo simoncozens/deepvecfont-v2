@@ -66,67 +66,33 @@ The synthesized candidates are in `./experiments/{exp_name}/results/{font_id}/sv
 In the testing phase, we run the model for `n_samples` times to generate multiple candidates, and in each time a random noise is injected (see [code](https://github.com/yizhiwang96/deepvecfont-v2/blob/c07d1d3a3a9ea491caecc879607c63d59aace1cd/models/transformers.py#L450)). 
 Currently we use IOU as the metric to pick the candidate, which sometimes cannot find the best result. You can manually check all the candidates.
 
-## Testing (Font interpolation and Random Generation)
-
-Will be updated soon ...
-
-
 ## Customize Dataset
 
 Taking --language 'eng' (English) as an example (it also could be 'chn' (Chinese)):
 
-### Install Fontforge in non-Conda env:
-```
-conda deactivate
-apt install python3-fontforge
-```
-
-###  Step1: Convert TTF to Sdfs
-```
-cd data_utils
-python3 convert_ttf_to_sfd.py --split train --language eng
-python3 convert_ttf_to_sfd.py --split test --language eng
-```
-
-By now you can re-enter the conda env:
-
-```
-conda activate dvf_v2
-```
-
-### Step2: Render glyph images:
-```
-python write_glyph_imgs.py --split train --language eng
-python write_glyph_imgs.py --split test --language eng
-```
-
-
-### Step3: Filter and Package Them into Directories:
+### Step 1: Filter and Package Them into Directories:
 
 Modify `MAX_SEQ_LEN` (the maximum sequence length) in `svg_utils.py`. We set `MAX_SEQ_LEN` to `50` for English and `70` for Chinese. You can also change the number according to your need.
 
 ```
-python write_data_to_dirs.py --split train --language eng
-python write_data_to_dirs.py --split test --language eng
+python -m deepvecfont.data_utils.make_dataset --split train --language eng
+python -m deepvecfont.data_utils.make_dataset --split test --language eng
 ```
 
 
-### Step3.1: Data Augmentation (ONLY for Chinese when training) 
+### Step 1.1: Data Augmentation (ONLY for Chinese when training) 
 
 ```
-python augment.py --split train --language chn --max_len 71
-python augment.py --split test --language chn --max_len 71
+python augment.py --split train --language chn
+python augment.py --split test --language chn
 ```
 
 ### Step4: Relaxation Processing and Calculating Auxiliary Bezier Points:
 
 ```
-python relax_rep.py --split train --language eng --max_len 51
-python relax_rep.py --split test --language eng --max_len 51
+python relax_rep.py --split train --language eng
+python relax_rep.py --split test --language eng
 ```
-
-when `language` is `chn`, set `max_len` to 71.
-
 
 ## Font Copyrights
 
