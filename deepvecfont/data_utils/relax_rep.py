@@ -3,6 +3,7 @@ import multiprocessing as mp
 import os
 
 import numpy as np
+import tqdm
 
 
 def numericalize(cmd, n=64):
@@ -80,70 +81,53 @@ def relax_rep(opts):
     font_dirs.sort()
     num_fonts = len(font_dirs)
     print(f"Number {opts.split} fonts before processing", num_fonts)
-    num_processes = mp.cpu_count() - 2
-    # num_processes = 1
-    fonts_per_process = num_fonts // num_processes + 1
+    for i in tqdm.tqdm(range(num_fonts)):
 
-    def process(process_id):
+        font_dir = os.path.join(data_path, font_dirs[i])
+        font_seq = np.load(os.path.join(font_dir, "sequence.npy")).reshape(
+            opts.n_chars, opts.max_len, -1
+        )
+        font_len = np.load(os.path.join(font_dir, "seq_len.npy")).reshape(-1)
+        cmd = font_seq[:, :, :4]
+        args = font_seq[:, :, 4:]
 
-        for i in range(
-            process_id * fonts_per_process, (process_id + 1) * fonts_per_process
-        ):
-            if i >= num_fonts:
-                break
+        ret = []
+        for j in range(opts.n_chars):
 
-            font_dir = os.path.join(data_path, font_dirs[i])
-            font_seq = np.load(os.path.join(font_dir, "sequence.npy")).reshape(
-                opts.n_chars, opts.max_len, -1
-            )
-            font_len = np.load(os.path.join(font_dir, "seq_len.npy")).reshape(-1)
-            cmd = font_seq[:, :, :4]
-            args = font_seq[:, :, 4:]
+            char_cmds = cmd[j]
+            char_args = args[j]
+            char_len = font_len[j]
+            new_args = []
+            for k in range(char_len):
+                cur_cls = np.argmax(char_cmds[k], -1)
+                cur_arg = char_args[k]
+                if k - 1 > -1:
+                    pre_arg = char_args[k - 1]
+                if cur_cls == 1:  # when k == 0, cur_cls == 1
+                    cur_arg = np.concatenate(
+                        (np.array([cur_arg[-2], cur_arg[-1]]), cur_arg), -1
+                    )
+                else:
+                    cur_arg = np.concatenate(
+                        (np.array([pre_arg[-2], pre_arg[-1]]), cur_arg), -1
+                    )
+                new_args.append(cur_arg)
 
-            ret = []
-            for j in range(opts.n_chars):
+            while (len(new_args)) < opts.max_len:
+                new_args.append(np.array([0, 0, 0, 0, 0, 0, 0, 0]))
 
-                char_cmds = cmd[j]
-                char_args = args[j]
-                char_len = font_len[j]
-                new_args = []
-                for k in range(char_len):
-                    cur_cls = np.argmax(char_cmds[k], -1)
-                    cur_arg = char_args[k]
-                    if k - 1 > -1:
-                        pre_arg = char_args[k - 1]
-                    if cur_cls == 1:  # when k == 0, cur_cls == 1
-                        cur_arg = np.concatenate(
-                            (np.array([cur_arg[-2], cur_arg[-1]]), cur_arg), -1
-                        )
-                    else:
-                        cur_arg = np.concatenate(
-                            (np.array([pre_arg[-2], pre_arg[-1]]), cur_arg), -1
-                        )
-                    new_args.append(cur_arg)
+            new_args = np.array(new_args)
+            new_seq = np.concatenate((char_cmds, new_args), -1)
+            ret.append(new_seq)
+        ret = np.array(ret)
+        # write relaxed version of sequence.npy
+        np.save(
+            os.path.join(font_dir, "sequence_relaxed.npy"),
+            ret.reshape(opts.n_chars, -1),
+        )
 
-                while (len(new_args)) < opts.max_len:
-                    new_args.append(np.array([0, 0, 0, 0, 0, 0, 0, 0]))
-
-                new_args = np.array(new_args)
-                new_seq = np.concatenate((char_cmds, new_args), -1)
-                ret.append(new_seq)
-            ret = np.array(ret)
-            # write relaxed version of sequence.npy
-            np.save(
-                os.path.join(font_dir, "sequence_relaxed.npy"),
-                ret.reshape(opts.n_chars, -1),
-            )
-
-            pts_aux = cal_aux_bezier_pts(ret, opts)
-            np.save(os.path.join(font_dir, "pts_aux.npy"), pts_aux)
-
-    processes = [mp.Process(target=process, args=[pid]) for pid in range(num_processes)]
-
-    for p in processes:
-        p.start()
-    for p in processes:
-        p.join()
+        pts_aux = cal_aux_bezier_pts(ret, opts)
+        np.save(os.path.join(font_dir, "pts_aux.npy"), pts_aux)
 
 
 def main():
@@ -161,7 +145,7 @@ def main():
         default=51,
         help="by default, 51 for english and 71 for chinese",
     )
-    parser.add_argument("--n_chars", type=int, default=52)
+    parser.add_argument("--n_chars", type=int, default=51)
     parser.add_argument("--split", type=str, default="train")
     opts = parser.parse_args()
     relax_rep(opts)

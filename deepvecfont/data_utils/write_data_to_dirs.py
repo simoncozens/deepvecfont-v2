@@ -3,23 +3,23 @@ import os
 from pathlib import Path
 
 import numpy as np
-import svg_utils
 from PIL import Image, ImageDraw, ImageFont
-from extract_path import extract_path, make_hb_font
 import tqdm
-from svg_utils import MAX_SEQ_LEN
+
+from deepvecfont.data_utils import svg_utils
+from deepvecfont.data_utils.extract_path import extract_path, make_hb_font
+from deepvecfont.data_utils.svg_utils import MAX_SEQ_LEN
+from deepvecfont.options import add_language_arg, get_charset
 
 
 def create_db(opts, output_path, log_path):
-    charset = open(f"../data/char_set/{opts.language}.txt", "r").read().strip()
+    charset = get_charset(opts)
     print("Process ttf to npy files in dirs....")
     ttf_path = Path(opts.ttf_path) / opts.language / opts.split
     all_font_paths = sorted(list(ttf_path.glob("*.?tf")))
     num_fonts = len(all_font_paths)
     num_fonts_w = len(str(num_fonts))
     print(f"Number {opts.split} fonts before processing", num_fonts)
-    num_chars = len(charset)
-    num_chars_w = len(str(num_chars))
 
     for i, font_path in tqdm.tqdm(enumerate(all_font_paths), total=num_fonts):
         cur_font_glyphs = load_font_glyphs(charset, font_path)
@@ -141,7 +141,7 @@ def load_font_glyphs(charset, font_path):
 
 def cal_mean_stddev(opts, output_path):
     print("Calculating all glyphs' mean stddev ....")
-    charset = open(f"../data/char_set/{opts.language}.txt", "r").read().strip()
+    charset = get_charset(opts)
     font_paths = []
     for _root, dirs, _files in os.walk(output_path):
         for dir_name in dirs:
@@ -183,17 +183,12 @@ def cal_mean_stddev(opts, output_path):
 
 def main():
     parser = argparse.ArgumentParser(description="LMDB creation")
-    charset_files = Path("../data/char_set").glob("*.txt")
-    charset_choices = sorted([f.stem for f in charset_files])
-    if not charset_choices:
-        raise ValueError("No charset files found in ../data/char_set")
-
-    parser.add_argument("--language", type=str, default="eng", choices=charset_choices)
-    parser.add_argument("--ttf_path", type=str, default="../data/font_ttfs")
+    add_language_arg(parser)
+    parser.add_argument("--ttf_path", type=str, default="./data/font_ttfs")
     parser.add_argument(
         "--output_path",
         type=str,
-        default="../data/vecfont_dataset_/",
+        default="./data/vecfont_dataset_/",
         help="Path to write the database to",
     )
     parser.add_argument(

@@ -12,6 +12,9 @@ from dataloader import get_loader
 from models.model_main import ModelMain
 from options import get_parser_main_model
 
+# device = torch.device("mps")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 def setup_seed(seed):
     torch.manual_seed(seed)
@@ -31,14 +34,14 @@ def train_main_model(opts):
     logfile_val = open(os.path.join(dir_log, "val_loss_log.txt"), "w")
 
     train_loader = get_loader(opts, opts.batch_size)
-    val_loader = get_loader(opts, opts.batch_size_val)
+    val_loader = get_loader(opts, opts.batch_size_val, mode="test")
 
     model_main = ModelMain(opts)
 
     if torch.cuda.is_available() and opts.multi_gpu:
         model_main = torch.nn.DataParallel(model_main)
 
-    model_main.cuda()
+    model_main.to(device)
 
     parameters_all = [
         {"params": model_main.img_encoder.parameters()},
@@ -63,7 +66,7 @@ def train_main_model(opts):
     for epoch in range(opts.init_epoch, opts.n_epochs):
         for idx, data in enumerate(train_loader):
             for key in data:
-                data[key] = data[key].cuda()
+                data[key] = data[key].to(device)
             ret_dict, loss_dict = model_main(data)
 
             loss = (
@@ -151,7 +154,7 @@ def train_main_model(opts):
 
                     for val_data in val_loader:
                         for key in val_data:
-                            val_data[key] = val_data[key].cuda()
+                            val_data[key] = val_data[key].to(device)
                         _, loss_dict_val = model_main(val_data, mode="val")
                         for loss_cat in ["img", "svg"]:
                             for key, _ in loss_val[loss_cat].items():

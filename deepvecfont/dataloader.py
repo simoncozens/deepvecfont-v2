@@ -3,32 +3,32 @@ import os
 import pickle
 import sys
 
+from options import get_charset
+
 import numpy as np
 import torch
 import torch.utils.data as data
 import torchvision.transforms as T
 
-torch.multiprocessing.set_sharing_strategy("file_system")
-
 
 class SVGDataset(data.Dataset):
-    def __init__(self, opts):
+    def __init__(self, opts, mode="train"):
         super().__init__()
 
         root_path = opts.data_root
         img_size = opts.img_size
         lang = opts.language
-        char_num = opts.char_num
+
+        char_num = len(get_charset(opts))
         max_seq_len = opts.max_seq_len
         dim_seq = opts.dim_seq
-        mode = opts.mode
-
         self.mode = mode
         self.img_size = img_size
         self.char_num = char_num
         self.max_seq_len = max_seq_len
         self.dim_seq = dim_seq
 
+        SetRange = T.Lambda(lambda X: 1.0 - X)  # convert [0, 1] -> [0, 1]
         self.trans = T.Compose([SetRange])
         self.font_paths = []
         self.dir_path = os.path.join(root_path, lang, self.mode)
@@ -72,12 +72,12 @@ class SVGDataset(data.Dataset):
         return len(self.font_paths)
 
 
-def get_loader(opts, batch_size):
-    SetRange = T.Lambda(lambda X: 1.0 - X)  # convert [0, 1] -> [0, 1]
-    dataset = SVGDataset(opts)
-    dataloader = data.DataLoader(
-        dataset, batch_size, shuffle=(opts.mode == "train"), num_workers=batch_size
+def get_loader(opts, batch_size, mode="train"):
+    dataset = SVGDataset(opts, mode)
+    assert len(dataset) > 0, (
+        "No data found in the " + opts.data_root + "/" + mode + " directory"
     )
+    dataloader = data.DataLoader(dataset, batch_size, shuffle=(mode == "train"))
     return dataloader
 
 

@@ -6,6 +6,9 @@ from PIL import Image
 
 from data_utils.common_utils import trans2_white_bg
 
+# device = torch.device("mps")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 def select_imgs(images_of_onefont, selected_cls, opts):
     # given selected char classes, return selected imgs

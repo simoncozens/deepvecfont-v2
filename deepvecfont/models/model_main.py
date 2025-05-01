@@ -1,10 +1,27 @@
+import torch
+import torch.nn.functional as F
+from torch import nn
 from torch.autograd import Variable
 
 from .image_decoder import ImageDecoder
 from .image_encoder import ImageEncoder
 from .modality_fusion import ModalityFusion
-from .transformers import *
+from .transformers import (
+    Transformer,
+    Transformer_decoder,
+    subsequent_mask,
+    denumericalize,
+    numericalize,
+)
 from .vgg_perceptual_loss import VGGPerceptualLoss
+
+from models import util_funcs
+from .util_funcs import device
+
+import sys
+
+sys.path.append("..")
+from options import get_charset
 
 
 class ModelMain(nn.Module):
@@ -12,6 +29,7 @@ class ModelMain(nn.Module):
     def __init__(self, opts, mode="train"):
         super().__init__()
         self.opts = opts
+        self.char_num = len(get_charset(opts))
         self.img_encoder = ImageEncoder(
             img_size=opts.img_size,
             input_nc=opts.ref_nshot,
@@ -20,7 +38,7 @@ class ModelMain(nn.Module):
         )
         self.img_decoder = ImageDecoder(
             img_size=opts.img_size,
-            input_nc=opts.bottleneck_bits + opts.char_num,
+            input_nc=opts.bottleneck_bits + self.char_num,
             output_nc=1,
             ngf=opts.ngf,
             norm_layer=nn.LayerNorm,
@@ -61,7 +79,7 @@ class ModelMain(nn.Module):
         imgs, seqs, scalars = self.fetch_data(data, mode)
         ref_img, trg_img = imgs
         (
-            ref_seq,
+            _ref_seq,
             ref_seq_cat,
             ref_pad_mask,
             trg_seq,
@@ -114,10 +132,10 @@ class ModelMain(nn.Module):
                 )
                 .unsqueeze(0)
                 .expand(z.size(0), -1, -1, -1)
-                .cuda()
+                .to(device)
                 .float()
             )
-            command_logits, args_logits, attn = self.transformer_seqdec(
+            command_logits, args_logits, _attn = self.transformer_seqdec(
                 x=trg_seq_shifted,
                 memory=latent_feat_seq,
                 trg_char=trg_cls,
@@ -155,21 +173,21 @@ class ModelMain(nn.Module):
         else:  # testing (inference)
 
             trg_len = trg_seq_shifted.size(0)
-            sampled_svg = torch.zeros(
-                1, trg_seq.size(1), self.opts.dim_seq_short
-            ).cuda()
+            sampled_svg = torch.zeros(1, trg_seq.size(1), self.opts.dim_seq_short).to(
+                device
+            )
 
-            for t in range(0, trg_len):
+            for _ in range(0, trg_len):
                 tgt_mask = (
                     Variable(
                         subsequent_mask(sampled_svg.size(0)).type_as(ref_seq_cat.data)
                     )
                     .unsqueeze(0)
                     .expand(sampled_svg.size(1), -1, -1, -1)
-                    .cuda()
+                    .to(device)
                     .float()
                 )
-                command_logits, args_logits, attn = self.transformer_seqdec(
+                command_logits, args_logits, _attn = self.transformer_seqdec(
                     x=sampled_svg,
                     memory=latent_feat_seq,
                     trg_char=trg_cls,
@@ -233,8 +251,8 @@ class ModelMain(nn.Module):
 
         input_image = data[
             "rendered"
-        ]  # [bs, opts.char_num, opts.img_size, opts.img_size]
-        input_sequence = data["sequence"]  #  [bs, opts.char_num, opts.max_seq_len]
+        ]  # [bs, self.char_num, opts.img_size, opts.img_size]
+        input_sequence = data["sequence"]  #  [bs, self.char_num, opts.max_seq_len]
         input_seqlen = data["seq_len"]
         input_seqlen = input_seqlen + 1
         input_pts_aux = data["pts_aux"]
@@ -245,12 +263,12 @@ class ModelMain(nn.Module):
         # choose reference classes and target classes
         if mode == "train":
             ref_cls = torch.randint(
-                0, self.opts.char_num, (input_image.size(0), self.opts.ref_nshot)
-            ).cuda()
+                0, self.char_num, (input_image.size(0), self.opts.ref_nshot)
+            ).to(device)
         elif mode == "val":
             ref_cls = (
                 torch.arange(0, self.opts.ref_nshot, 1)
-                .cuda()
+                .to(device)
                 .unsqueeze(0)
                 .expand(input_image.size(0), -1)
             )
@@ -259,20 +277,20 @@ class ModelMain(nn.Module):
             ref_ids = list(map(int, ref_ids))
             assert len(ref_ids) == self.opts.ref_nshot
             ref_cls = (
-                torch.tensor(ref_ids).cuda().unsqueeze(0).expand(self.opts.char_num, -1)
+                torch.tensor(ref_ids).to(device).unsqueeze(0).expand(self.char_num, -1)
             )
 
         if mode in {"train", "val"}:
-            trg_cls = torch.randint(
-                0, self.opts.char_num, (input_image.size(0), 1)
-            ).cuda()
+            trg_cls = torch.randint(0, self.char_num, (input_image.size(0), 1)).to(
+                device
+            )
         else:
-            trg_cls = torch.arange(0, self.opts.char_num).cuda()
-            trg_cls = trg_cls.view(self.opts.char_num, 1)
-            input_image = input_image.expand(self.opts.char_num, -1, -1, -1)
-            input_sequence = input_sequence.expand(self.opts.char_num, -1, -1, -1)
-            input_pts_aux = input_pts_aux.expand(self.opts.char_num, -1, -1, -1)
-            input_seqlen = input_seqlen.expand(self.opts.char_num, -1, -1)
+            trg_cls = torch.arange(0, self.char_num).to(device)
+            trg_cls = trg_cls.view(self.char_num, 1)
+            input_image = input_image.expand(self.char_num, -1, -1, -1)
+            input_sequence = input_sequence.expand(self.char_num, -1, -1, -1)
+            input_pts_aux = input_pts_aux.expand(self.char_num, -1, -1, -1)
+            input_seqlen = input_seqlen.expand(self.char_num, -1, -1)
 
         ref_img = util_funcs.select_imgs(input_image, ref_cls, self.opts)
         # select a target glyph image
@@ -287,7 +305,7 @@ class ModelMain(nn.Module):
         )
         trg_seq = trg_seq.squeeze(1)
         trg_pts_aux = util_funcs.select_seqs(
-            input_pts_aux, trg_cls, self.opts, opts.n_aux_pts
+            input_pts_aux, trg_cls, self.opts, self.opts.n_aux_pts
         )
         trg_pts_aux = trg_pts_aux.squeeze(1)
         # the one-hot target char class
@@ -311,7 +329,7 @@ class ModelMain(nn.Module):
         )  # value = 1 means pos to be masked
         for i in range(ref_seqlen_cat.size(0)):
             ref_pad_mask[i, : ref_seqlen_cat[i]] = 1
-        ref_pad_mask = ref_pad_mask.cuda().float().unsqueeze(1)
+        ref_pad_mask = ref_pad_mask.to(device).float().unsqueeze(1)
         trg_seqlen = util_funcs.select_seqlens(input_seqlen, trg_cls, self.opts)
         trg_seqlen = trg_seqlen.squeeze()
 
