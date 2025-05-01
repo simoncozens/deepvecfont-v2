@@ -1,8 +1,6 @@
 import math
 
-import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 
 class ImageEncoder(nn.Module):
@@ -61,9 +59,9 @@ class ImageEncoder(nn.Module):
         self.encode = nn.Sequential(*encoder)
         self.flatten = nn.Flatten()
 
-    def forward(self, input):
+    def forward(self, inp):
         """Standard forward"""
-        ret = self.encode(input)
+        ret = self.encode(inp)
         img_feat = self.flatten(ret)
         output = {}
         output["img_feat"] = img_feat

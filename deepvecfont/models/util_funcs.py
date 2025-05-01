@@ -4,7 +4,7 @@ import torch
 import torch.nn.functional as F
 from PIL import Image
 
-from data_utils.common_utils import trans2_white_bg
+from deepvecfont.data_utils.common_utils import trans2_white_bg
 
 # device = torch.device("mps")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
