@@ -30,26 +30,8 @@ def train_main_model(opts):
     logfile_train = open(os.path.join(dir_log, "train_loss_log.txt"), "w")
     logfile_val = open(os.path.join(dir_log, "val_loss_log.txt"), "w")
 
-    train_loader = get_loader(
-        opts.data_root,
-        opts.img_size,
-        opts.language,
-        opts.char_num,
-        opts.max_seq_len,
-        opts.dim_seq,
-        opts.batch_size,
-        opts.mode,
-    )
-    val_loader = get_loader(
-        opts.data_root,
-        opts.img_size,
-        opts.language,
-        opts.char_num,
-        opts.max_seq_len,
-        opts.dim_seq,
-        opts.batch_size_val,
-        "test",
-    )
+    train_loader = get_loader(opts, opts.batch_size)
+    val_loader = get_loader(opts, opts.batch_size_val)
 
     model_main = ModelMain(opts)
 
@@ -167,10 +149,10 @@ def train_main_model(opts):
                         "svg_para": {"total": 0.0, "cmd": 0.0, "args": 0.0, "aux": 0.0},
                     }
 
-                    for val_idx, val_data in enumerate(val_loader):
+                    for val_data in val_loader:
                         for key in val_data:
                             val_data[key] = val_data[key].cuda()
-                        ret_dict_val, loss_dict_val = model_main(val_data, mode="val")
+                        _, loss_dict_val = model_main(val_data, mode="val")
                         for loss_cat in ["img", "svg"]:
                             for key, _ in loss_val[loss_cat].items():
                                 loss_val[loss_cat][key] += loss_dict_val[loss_cat][key]
