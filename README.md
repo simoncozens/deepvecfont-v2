@@ -15,7 +15,7 @@ Paper: [Arxiv](https://arxiv.org/abs/2303.14585) Video: [Youtube](https://www.yo
 ```
 conda create -n dvf_v2 python=3.9
 conda activate dvf_v2
-pip install torch==1.13.1+cu117 torchvision==0.14.1+cu117 torchaudio==0.13.1 --extra-index-url https://download.pytorch.org/whl/cu117
+pip install torch==1.13.1+cu117 torchvision==0.14.1+cu117 --extra-index-url https://download.pytorch.org/whl/cu117
 pip install tensorboardX einops timm scikit-image cairosvg
 ```
 
@@ -40,24 +40,24 @@ If you use our trained checkpoints, you can directly go to the `Testing` section
 English Dataset:
 
 ```
-CUDA_VISIBLE_DEVICES=0 python train.py --mode train --name_exp dvf_base_exp_eng --model_name main_model --batch_size 32 --max_seq_len 51 --lang eng --ref_nshot 4
+CUDA_VISIBLE_DEVICES=0 python -m deepvecfont.train
 ```
 
 Chinese Dataset:
 
 ```
-CUDA_VISIBLE_DEVICES=0 python train.py --mode train --name_exp dvf_base_exp_chn --model_name main_model --batch_size 32 --max_seq_len 71 --lang chn --ref_nshot 8
+CUDA_VISIBLE_DEVICES=0 python -m deepvecfont.train --lang chn
 ```
 
 ## Testing (Few-shot Generation)
 English:
 ```
-CUDA_VISIBLE_DEVICES=0 python test_few_shot.py --mode test --name_exp dvf_base_exp_eng --model_name main_model --batch_size 1 --n_samples 20 --name_ckpt {name_ckpt}
+CUDA_VISIBLE_DEVICES=0 python -m deepvecfont.test_few_shot --batch_size 1 --n_samples 20 --name_ckpt {name_ckpt}
 ```
 
 Chinese:
 ```
-CUDA_VISIBLE_DEVICES=0 python test_few_shot.py --mode test --name_exp dvf_base_exp_chn --language chn --max_seq_len 71 --model_name main_model --batch_size 1 --n_samples 50 --model_name main_model --batch_size 1 --n_samples 50 --ref_nshot 8 --ref_char_ids 0,1,2,3,26,27,28,29 --name_ckpt {name_ckpt}
+CUDA_VISIBLE_DEVICES=0 python -m deepvecfont.test_few_shot --name_exp dvf_base_exp_chn --language chn --batch_size 1 --n_samples 50 --ref_nshot 8 --ref_char_ids 0,1,2,3,26,27,28,29 --name_ckpt {name_ckpt}
 ```
 
 Note that you can modify `ref_char_ids` to define which characters are used as references.
@@ -83,15 +83,8 @@ python -m deepvecfont.data_utils.make_dataset --split test --language eng
 ### Step 1.1: Data Augmentation (ONLY for Chinese when training) 
 
 ```
-python augment.py --split train --language chn
-python augment.py --split test --language chn
-```
-
-### Step4: Relaxation Processing and Calculating Auxiliary Bezier Points:
-
-```
-python relax_rep.py --split train --language eng
-python relax_rep.py --split test --language eng
+python -m deepvecfont.data_utils.augment --split train --language chn
+python -m deepvecfont.data_utils.augment --split test --language chn
 ```
 
 ## Font Copyrights
