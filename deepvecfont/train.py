@@ -8,9 +8,9 @@ from tensorboardX import SummaryWriter
 from torch.optim import Adam
 from torchvision.utils import save_image
 
-from dataloader import get_loader
-from models.model_main import ModelMain
-from options import get_parser_main_model
+from deepvecfont.dataloader import get_loader
+from deepvecfont.models.model_main import ModelMain
+from deepvecfont.options import get_parser_main_model
 
 # device = torch.device("mps")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
