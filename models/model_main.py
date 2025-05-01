@@ -1,9 +1,10 @@
-from .image_encoder import ImageEncoder
-from .image_decoder import ImageDecoder
-from .modality_fusion import ModalityFusion
-from .vgg_perceptual_loss import VGGPerceptualLoss
-from .transformers import *
 from torch.autograd import Variable
+
+from .image_decoder import ImageDecoder
+from .image_encoder import ImageEncoder
+from .modality_fusion import ModalityFusion
+from .transformers import *
+from .vgg_perceptual_loss import VGGPerceptualLoss
 
 
 class ModelMain(nn.Module):

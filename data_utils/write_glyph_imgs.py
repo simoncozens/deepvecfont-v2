@@ -1,10 +1,9 @@
-from PIL import Image
-from PIL import ImageDraw
-from PIL import ImageFont
 import argparse
-import numpy as np
-import os
 import multiprocessing as mp
+import os
+
+import numpy as np
+from PIL import Image, ImageDraw, ImageFont
 
 
 def get_bbox(img):

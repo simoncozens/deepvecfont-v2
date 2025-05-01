@@ -1,9 +1,10 @@
+import cairosvg
+import numpy as np
 import torch
 import torch.nn.functional as F
-import cairosvg
-from data_utils.common_utils import trans2_white_bg
 from PIL import Image
-import numpy as np
+
+from data_utils.common_utils import trans2_white_bg
 
 
 def select_imgs(images_of_onefont, selected_cls, opts):

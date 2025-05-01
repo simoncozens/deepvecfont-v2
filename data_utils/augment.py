@@ -1,12 +1,14 @@
 import argparse
+import math
 import multiprocessing as mp
 import os
-import numpy as np
-import math
-import cairosvg
 import shutil
+
+import cairosvg
+import numpy as np
+from common_utils import (affine_rotate, affine_scale, affine_shear,
+                          trans2_white_bg)
 from svg_utils import clockwise, render
-from common_utils import affine_shear, affine_rotate, affine_scale, trans2_white_bg
 
 
 def render_svg(svg_str, font_dir, char_idx, aug_idx, img_size):

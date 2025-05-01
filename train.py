@@ -1,18 +1,16 @@
 import os
 import random
-import numpy as np
 import shutil
+
+import numpy as np
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from torch.optim import Adam, AdamW
-from torchvision.utils import save_image
 from tensorboardX import SummaryWriter
+from torch.optim import Adam
+from torchvision.utils import save_image
+
 from dataloader import get_loader
-from models import util_funcs
 from models.model_main import ModelMain
 from options import get_parser_main_model
-from data_utils.svg_utils import render
 
 
 def setup_seed(seed):
@@ -257,8 +255,6 @@ def backup_code(name_exp):
 def train(opts):
     if opts.model_name == "main_model":
         train_main_model(opts)
-    elif opts.model_name == "others":
-        train_others(opts)
     else:
         raise NotImplementedError
 

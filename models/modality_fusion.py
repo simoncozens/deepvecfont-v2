@@ -1,7 +1,9 @@
+import math
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import math
+
 from options import get_parser_main_model
 
 opts = get_parser_main_model().parse_args()

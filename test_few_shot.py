@@ -1,14 +1,16 @@
 import os
+
 import numpy as np
 import torch
 import torch.nn.functional as F
 from torchvision.utils import save_image
+
+from data_utils.svg_utils import render
 from dataloader import get_loader
 from models.model_main import ModelMain
 from models.transformers import denumericalize
+from models.util_funcs import cal_iou, svg2img
 from options import get_parser_main_model
-from data_utils.svg_utils import render
-from models.util_funcs import svg2img, cal_iou
 
 
 def test_main_model(opts):

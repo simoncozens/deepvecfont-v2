@@ -1,7 +1,8 @@
-import fontforge  # noqa
-import os
-import multiprocessing as mp
 import argparse
+import multiprocessing as mp
+import os
+
+import fontforge  # noqa
 
 # conda deactivate
 # apt install python3-fontforge

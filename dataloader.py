@@ -1,11 +1,12 @@
 # data loader for training main model
 import os
 import pickle
+import sys
+
+import numpy as np
 import torch
 import torch.utils.data as data
 import torchvision.transforms as T
-import sys
-import numpy as np
 
 torch.multiprocessing.set_sharing_strategy("file_system")
 

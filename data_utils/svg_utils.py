@@ -15,13 +15,12 @@
 # Lint as: python3
 """Defines the Material Design Icons Problem."""
 import io
-import numpy as np
 import re
-
-from PIL import Image
 from itertools import zip_longest
-from skimage import draw
 
+import numpy as np
+from PIL import Image
+from skimage import draw
 
 SVG_PREFIX_BIG = (
     '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="'
