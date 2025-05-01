@@ -3,25 +3,22 @@ import torch.nn.functional as F
 from torch import nn
 from torch.autograd import Variable
 
+from deepvecfont.data_utils.svg_utils import MAX_SEQ_LEN
+from deepvecfont.models import util_funcs
+from deepvecfont.options import get_charset
+
 from .image_decoder import ImageDecoder
 from .image_encoder import ImageEncoder
 from .modality_fusion import ModalityFusion
 from .transformers import (
     Transformer,
     Transformer_decoder,
-    subsequent_mask,
     denumericalize,
     numericalize,
+    subsequent_mask,
 )
-from .vgg_perceptual_loss import VGGPerceptualLoss
-
-from models import util_funcs
 from .util_funcs import device
-
-import sys
-
-sys.path.append("..")
-from options import get_charset
+from .vgg_perceptual_loss import VGGPerceptualLoss
 
 
 class ModelMain(nn.Module):
