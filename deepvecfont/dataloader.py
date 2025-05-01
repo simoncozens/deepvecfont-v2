@@ -1,14 +1,12 @@
 # data loader for training main model
 import os
-import pickle
-import sys
-
-from options import get_charset
 
 import numpy as np
 import torch
 import torch.utils.data as data
 import torchvision.transforms as T
+
+from deepvecfont.options import get_charset
 
 
 class SVGDataset(data.Dataset):
@@ -32,7 +30,7 @@ class SVGDataset(data.Dataset):
         self.trans = T.Compose([SetRange])
         self.font_paths = []
         self.dir_path = os.path.join(root_path, lang, self.mode)
-        for root, dirs, files in os.walk(self.dir_path):
+        for root, dirs, _files in os.walk(self.dir_path):
             depth = root.count("/") - self.dir_path.count("/")
             if depth == 0:
                 for dir_name in dirs:
@@ -75,21 +73,21 @@ class SVGDataset(data.Dataset):
 def get_loader(opts, batch_size, mode="train"):
     dataset = SVGDataset(opts, mode)
     assert len(dataset) > 0, (
-        "No data found in the " + opts.data_root + "/" + mode + " directory"
+        "No data found in the " + str(opts.data_root) + "/" + mode + " directory"
     )
     dataloader = data.DataLoader(dataset, batch_size, shuffle=(mode == "train"))
     return dataloader
 
 
-if __name__ == "__main__":
-    root_path = "data/new_data"
-    max_seq_len = 51
-    dim_seq = 10
-    batch_size = 1
-    char_num = 52
+# if __name__ == "__main__":
+#     root_path = "data/new_data"
+#     max_seq_len = 51
+#     dim_seq = 10
+#     batch_size = 1
+#     char_num = 52
 
-    loader = get_loader(root_path, char_num, max_seq_len, dim_seq, batch_size, "train")
-    fout = open("train_id_record_old.txt", "w")
-    for idx, batch in enumerate(loader):
-        binary_fp = batch["font_id"].numpy()[0][0]
-        fout.write("%05d" % int(binary_fp) + "\n")
+#     loader = get_loader(root_path, char_num, max_seq_len, dim_seq, batch_size, "train")
+#     fout = open("train_id_record_old.txt", "w")
+#     for idx, batch in enumerate(loader):
+#         binary_fp = batch["font_id"].numpy()[0][0]
+#         fout.write("%05d" % int(binary_fp) + "\n")
