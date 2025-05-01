@@ -119,9 +119,7 @@ class ModelMain(nn.Module):
         if mode in {"train", "val"}:
             # seq decoding (training or val mode)
             tgt_mask = (
-                Variable(
-                    subsequent_mask(self.opts.max_seq_len).type_as(ref_pad_mask.data)
-                )
+                Variable(subsequent_mask(MAX_SEQ_LEN).type_as(ref_pad_mask.data))
                 .unsqueeze(0)
                 .expand(z.size(0), -1, -1, -1)
                 .to(device)
@@ -289,19 +287,19 @@ class ModelMain(nn.Module):
         trg_img = util_funcs.select_imgs(input_image, trg_cls, self.opts)
         # randomly select ref vector glyphs
         ref_seq = util_funcs.select_seqs(
-            input_sequence, ref_cls, self.opts, self.opts.dim_seq_short
+            input_sequence, ref_cls, self.opts.dim_seq_short
         )  # [opts.batch_size, opts.ref_nshot, opts.max_seq_len, opts.dim_seq_nmr]
         # randomly select a target vector glyph
         trg_seq = util_funcs.select_seqs(
-            input_sequence, trg_cls, self.opts, self.opts.dim_seq_short
+            input_sequence, trg_cls, self.opts.dim_seq_short
         )
         trg_seq = trg_seq.squeeze(1)
         trg_pts_aux = util_funcs.select_seqs(
-            input_pts_aux, trg_cls, self.opts, self.opts.n_aux_pts
+            input_pts_aux, trg_cls, self.opts.n_aux_pts
         )
         trg_pts_aux = trg_pts_aux.squeeze(1)
         # the one-hot target char class
-        trg_char_onehot = util_funcs.trgcls_to_onehot(trg_cls, self.opts)
+        trg_char_onehot = util_funcs.trgcls_to_onehot(trg_cls, self.char_num)
         # shift target sequence
         trg_seq_gt = trg_seq.clone().detach()
         trg_seq_gt = torch.cat((trg_seq_gt[:, :, :1], trg_seq_gt[:, :, 3:]), -1)
@@ -312,17 +310,17 @@ class ModelMain(nn.Module):
             ref_seq.size(0) * ref_seq.size(1), ref_seq.size(2), ref_seq.size(3)
         )
         ref_seq_cat = ref_seq_cat.transpose(0, 1)
-        ref_seqlen = util_funcs.select_seqlens(input_seqlen, ref_cls, self.opts)
+        ref_seqlen = util_funcs.select_seqlens(input_seqlen, ref_cls)
         ref_seqlen_cat = ref_seqlen.view(
             ref_seqlen.size(0) * ref_seqlen.size(1), ref_seqlen.size(2)
         )
         ref_pad_mask = torch.zeros(
-            ref_seqlen_cat.size(0), self.opts.max_seq_len
+            ref_seqlen_cat.size(0), MAX_SEQ_LEN
         )  # value = 1 means pos to be masked
         for i in range(ref_seqlen_cat.size(0)):
             ref_pad_mask[i, : ref_seqlen_cat[i]] = 1
         ref_pad_mask = ref_pad_mask.to(device).float().unsqueeze(1)
-        trg_seqlen = util_funcs.select_seqlens(input_seqlen, trg_cls, self.opts)
+        trg_seqlen = util_funcs.select_seqlens(input_seqlen, trg_cls)
         trg_seqlen = trg_seqlen.squeeze()
 
         return (

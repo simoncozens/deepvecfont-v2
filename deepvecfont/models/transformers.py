@@ -546,7 +546,7 @@ class Transformer(nn.Module):
         )
         self.pre_lstm_fc = nn.Linear(10, self.opts.hidden_size)
         self.posr = PositionalEncoding(
-            d_model=self.opts.hidden_size, max_len=MAX_SEQ_LEN
+            d_model=self.opts.hidden_size, max_len=(MAX_SEQ_LEN + 1)
         )
 
         patch_height = 2

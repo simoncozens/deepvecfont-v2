@@ -5,6 +5,7 @@ import torch.nn.functional as F
 from PIL import Image
 
 from deepvecfont.data_utils.common_utils import trans2_white_bg
+from deepvecfont.data_utils.svg_utils import MAX_SEQ_LEN
 
 # device = torch.device("mps")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -24,19 +25,19 @@ def select_imgs(images_of_onefont, selected_cls, opts):
     return selected_img
 
 
-def select_seqs(seqs_of_onefont, selected_cls, opts, seq_dim):
+def select_seqs(seqs_of_onefont, selected_cls, seq_dim):
 
     nums = selected_cls.size(1)
     selected_cls_ = selected_cls.unsqueeze(2)
     selected_cls_ = selected_cls_.unsqueeze(3)
     selected_cls_ = selected_cls_.expand(
-        seqs_of_onefont.size(0), nums, opts.max_seq_len, seq_dim
+        seqs_of_onefont.size(0), nums, MAX_SEQ_LEN, seq_dim
     )
     selected_seqs = torch.gather(seqs_of_onefont, 1, selected_cls_)
     return selected_seqs
 
 
-def select_seqlens(seqlens_of_onefont, selected_cls, opts):
+def select_seqlens(seqlens_of_onefont, selected_cls):
 
     nums = selected_cls.size(1)
     selected_cls_ = selected_cls.unsqueeze(2)
@@ -47,8 +48,8 @@ def select_seqlens(seqlens_of_onefont, selected_cls, opts):
     return selected_seqlens
 
 
-def trgcls_to_onehot(trg_cls, opts):
-    trg_char = F.one_hot(trg_cls, num_classes=opts.char_num).squeeze(dim=1)
+def trgcls_to_onehot(trg_cls, char_num):
+    trg_char = F.one_hot(trg_cls, num_classes=char_num).squeeze(dim=1)
     return trg_char
 
 
