@@ -3,10 +3,11 @@ import torchvision
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+
 class VGG19Feats(torch.nn.Module):
     def __init__(self, requires_grad=False):
         super(VGG19Feats, self).__init__()
-        vgg = torchvision.models.vgg19(pretrained=True).to(device) #.cuda()
+        vgg = torchvision.models.vgg19(pretrained=True).to(device)  # .cuda()
         # vgg.eval()
         vgg_pretrained_features = vgg.features.eval()
         self.requires_grad = requires_grad
@@ -28,7 +29,7 @@ class VGG19Feats(torch.nn.Module):
         if not self.requires_grad:
             for param in self.parameters():
                 param.requires_grad = False
- 
+
     def forward(self, img):
         conv1_2 = self.slice1(img)
         conv2_2 = self.slice2(conv1_2)
@@ -44,9 +45,13 @@ class VGGPerceptualLoss(torch.nn.Module):
         super(VGGPerceptualLoss, self).__init__()
         self.vgg = VGG19Feats().to(device)
         self.criterion = torch.nn.functional.l1_loss
-        self.register_buffer("mean", torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1))
-        self.register_buffer("std", torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1))
-        self.weights = [1.0/2.6, 1.0/4.8, 1.0/3.7, 1.0/5.6, 1.0*10/1.5]
+        self.register_buffer(
+            "mean", torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1)
+        )
+        self.register_buffer(
+            "std", torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1)
+        )
+        self.weights = [1.0 / 2.6, 1.0 / 4.8, 1.0 / 3.7, 1.0 / 5.6, 1.0 * 10 / 1.5]
 
     def forward(self, input_img, target_img):
 
@@ -59,11 +64,13 @@ class VGGPerceptualLoss(torch.nn.Module):
         x_vgg, y_vgg = self.vgg(input_img), self.vgg(target_img)
 
         loss = {}
-        loss['pt_c_loss'] = self.weights[0] * self.criterion(x_vgg[0], y_vgg[0])+\
-                            self.weights[1] * self.criterion(x_vgg[1], y_vgg[1])+\
-                            self.weights[2] * self.criterion(x_vgg[2], y_vgg[2])+\
-                            self.weights[3] * self.criterion(x_vgg[3], y_vgg[3])+\
-                            self.weights[4] * self.criterion(x_vgg[4], y_vgg[4])
-        loss['pt_s_loss'] = 0.0
+        loss["pt_c_loss"] = (
+            self.weights[0] * self.criterion(x_vgg[0], y_vgg[0])
+            + self.weights[1] * self.criterion(x_vgg[1], y_vgg[1])
+            + self.weights[2] * self.criterion(x_vgg[2], y_vgg[2])
+            + self.weights[3] * self.criterion(x_vgg[3], y_vgg[3])
+            + self.weights[4] * self.criterion(x_vgg[4], y_vgg[4])
+        )
+        loss["pt_s_loss"] = 0.0
 
         return loss

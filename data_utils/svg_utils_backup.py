@@ -1,4 +1,3 @@
-
 # Copyright 2020 The Magenta Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import pdb
+
 # Lint as: python3
 """Defines the Material Design Icons Problem."""
 import io
@@ -24,22 +24,42 @@ from itertools import zip_longest
 from skimage import draw
 import sys
 
-SVG_PREFIX_BIG = ('<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="'
-                  'http://www.w3.org/1999/xlink" width="256px" height="256px"'
-                  ' style="-ms-transform: rotate(360deg); -webkit-transform:'
-                  ' rotate(360deg); transform: rotate(360deg);" '
-                  'preserveAspectRatio="xMidYMid meet" viewBox="0 0 24 24">')
+SVG_PREFIX_BIG = (
+    '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="'
+    'http://www.w3.org/1999/xlink" width="256px" height="256px"'
+    ' style="-ms-transform: rotate(360deg); -webkit-transform:'
+    ' rotate(360deg); transform: rotate(360deg);" '
+    'preserveAspectRatio="xMidYMid meet" viewBox="0 0 24 24">'
+)
 PATH_PREFIX_1 = '<path d="'
 PATH_POSFIX_1 = '" fill="currentColor"/>'
-SVG_POSFIX = '</svg>'
+SVG_POSFIX = "</svg>"
 
-NUM_ARGS = {'v': 1, 'V': 1, 'h': 1, 'H': 1, 'a': 7, 'A': 7, 'l': 2, 'L': 2,
-            't': 2, 'T': 2, 'c': 6, 'C': 6, 'm': 2, 'M': 2, 's': 4, 'S': 4,
-            'q': 4, 'Q': 4, 'z': 0}
+NUM_ARGS = {
+    "v": 1,
+    "V": 1,
+    "h": 1,
+    "H": 1,
+    "a": 7,
+    "A": 7,
+    "l": 2,
+    "L": 2,
+    "t": 2,
+    "T": 2,
+    "c": 6,
+    "C": 6,
+    "m": 2,
+    "M": 2,
+    "s": 4,
+    "S": 4,
+    "q": 4,
+    "Q": 4,
+    "z": 0,
+}
 # in order of arg complexity, with absolutes clustered
 # recall we don't handle all commands (see docstring)
 
-#note  args:
+# note  args:
 # v, h: vertical horizental lines
 # a: elliptical Arc 椭圆
 # l:  lineto
@@ -49,8 +69,8 @@ NUM_ARGS = {'v': 1, 'V': 1, 'h': 1, 'H': 1, 'a': 7, 'A': 7, 'l': 2, 'L': 2,
 # s: smooth curveto
 # Q: quadratic Bézier curve 2次贝塞尔曲线
 # z: closepath
-#CMDS_LIST = 'zhvmltsqcaHVMLTSQCA'
-CMDS_LIST = 'zHVMLTSQCAhvmltsqca'
+# CMDS_LIST = 'zhvmltsqcaHVMLTSQCA'
+CMDS_LIST = "zHVMLTSQCAhvmltsqca"
 CMD_MAPPING = {cmd: i for i, cmd in enumerate(CMDS_LIST)}
 
 FEATURE_DIM = 10
@@ -82,10 +102,10 @@ def _map_uni_to_alpha(uni):
 
 ############# UTILS FOR CONVERTING SFD/SPLINESETS TO SVG PATHS ################
 def _get_spline(sfd):
-    if 'SplineSet' not in sfd:
-        return ''
-    pro = sfd[sfd.index('SplineSet') + 10:]  # 10 is the 'SplineSet'
-    pro = pro[:pro.index('EndSplineSet')]
+    if "SplineSet" not in sfd:
+        return ""
+    pro = sfd[sfd.index("SplineSet") + 10 :]  # 10 is the 'SplineSet'
+    pro = pro[: pro.index("EndSplineSet")]
     return pro
 
 
@@ -96,16 +116,16 @@ def _spline_to_path_list(spline, height, replace_with_prev=False):
     for line in spline.splitlines():
         if not line:
             continue
-        tokens = line.split(' ')
+        tokens = line.split(" ")
         cmd = tokens[-2]
-        if cmd not in 'cml':
+        if cmd not in "cml":
             # COMMAND NOT RECOGNIZED.
             return []
             # assert cmd in 'cml', 'Command not recognized: {}'.format(cmd)
         args = tokens[:-2]
         args = [float(x) for x in args if x]
 
-        if replace_with_prev and cmd in 'c':
+        if replace_with_prev and cmd in "c":
             args[:2] = prev_xy
         prev_xy = args[-2:]
 
@@ -122,7 +142,9 @@ def _spline_to_path_list(spline, height, replace_with_prev=False):
 
 def _sfd_to_path_list(single, replace_with_prev=False):
     """Converts the given SFD glyph into a path."""
-    return _spline_to_path_list(_get_spline(single['sfd']), single['vwidth'], replace_with_prev)
+    return _spline_to_path_list(
+        _get_spline(single["sfd"]), single["vwidth"], replace_with_prev
+    )
 
 
 #################### UTILS FOR PROCESSING TOKENIZED PATHS #####################
@@ -136,7 +158,7 @@ def _add_missing_cmds(path, remove_zs=False):
     # Note: if remove_zs is True, this also removes any occurences of z commands.
     new_path = []
     for cmd in path:
-        if not remove_zs or cmd[0] not in 'Zz':
+        if not remove_zs or cmd[0] not in "Zz":
             for new_cmd in add_missing_cmd(cmd):
                 new_path.append(new_cmd)
     return new_path
@@ -203,7 +225,7 @@ def _normalize_based_on_viewbox(path, viewbox):
     # I scale all icons' commands to use a 24x24 viewbox. This function does this:
     # it converts a path that exists in the given viewbox into a standard 24x24
     # viewbox.
-    viewbox = viewbox.split(' ')
+    viewbox = viewbox.split(" ")
     norm = max(int(viewbox[-1]), int(viewbox[-2]))
 
     if int(viewbox[-1]) > int(viewbox[-2]):
@@ -215,17 +237,33 @@ def _normalize_based_on_viewbox(path, viewbox):
 
     new_path = []
     for command in path:
-        if command[0] == 'a':
-            new_path.append([command[0]] + _normalize_args(command[1:3], norm)
-                            + command[3:6] + _normalize_args(command[6:], norm))
-        elif command[0] == 'A':
-            new_path.append([command[0]] + _normalize_args(command[1:3], norm)
-                            + command[3:6] + _normalize_args(command[6:], norm, add=(add_to_x, add_to_y)))
-        elif command[0] == 'V':
-            new_path.append([command[0]] + _normalize_args(command[1:], norm, add=(add_to_x, add_to_y), flip=True))
+        if command[0] == "a":
+            new_path.append(
+                [command[0]]
+                + _normalize_args(command[1:3], norm)
+                + command[3:6]
+                + _normalize_args(command[6:], norm)
+            )
+        elif command[0] == "A":
+            new_path.append(
+                [command[0]]
+                + _normalize_args(command[1:3], norm)
+                + command[3:6]
+                + _normalize_args(command[6:], norm, add=(add_to_x, add_to_y))
+            )
+        elif command[0] == "V":
+            new_path.append(
+                [command[0]]
+                + _normalize_args(
+                    command[1:], norm, add=(add_to_x, add_to_y), flip=True
+                )
+            )
         elif command[0] == command[0].upper():
-            new_path.append([command[0]] + _normalize_args(command[1:], norm, add=(add_to_x, add_to_y)))
-        elif command[0] in 'zZ':
+            new_path.append(
+                [command[0]]
+                + _normalize_args(command[1:], norm, add=(add_to_x, add_to_y))
+            )
+        elif command[0] in "zZ":
             new_path.append([command[0]])
         else:
             new_path.append([command[0]] + _normalize_args(command[1:], norm))
@@ -237,13 +275,13 @@ def _convert_args(args, curr_pos, cmd):
     """Converts given args to relative values."""
     # NOTE: glyphs only use a very small subset of commands (L, C, M, and Z -- I
     # believe). So I'm not handling A and H for now.
-    if cmd in 'AH':
-        raise NotImplementedError('These commands have >6 args (not supported).')
+    if cmd in "AH":
+        raise NotImplementedError("These commands have >6 args (not supported).")
 
     new_args = []
     for i, arg in enumerate(args):
         x_or_y = i % 2
-        if cmd == 'H':
+        if cmd == "H":
             x_or_y = (i + 1) % 2
         new_args.append(str(float(arg) - curr_pos[x_or_y]))
 
@@ -252,17 +290,17 @@ def _convert_args(args, curr_pos, cmd):
 
 def _update_curr_pos(curr_pos, cmd, start_of_path):
     """Calculate the position of the pen after cmd is applied."""
-    if cmd[0] in 'ml':
+    if cmd[0] in "ml":
         curr_pos = [curr_pos[0] + float(cmd[1]), curr_pos[1] + float(cmd[2])]
-        if cmd[0] == 'm':
+        if cmd[0] == "m":
             start_of_path = curr_pos
-    elif cmd[0] in 'z':
+    elif cmd[0] in "z":
         curr_pos = start_of_path
-    elif cmd[0] in 'h':
+    elif cmd[0] in "h":
         curr_pos = [curr_pos[0] + float(cmd[1]), curr_pos[1]]
-    elif cmd[0] in 'v':
+    elif cmd[0] in "v":
         curr_pos = [curr_pos[0], curr_pos[1] + float(cmd[1])]
-    elif cmd[0] in 'ctsqa':
+    elif cmd[0] in "ctsqa":
         curr_pos = [curr_pos[0] + float(cmd[-2]), curr_pos[1] + float(cmd[-1])]
 
     return curr_pos, start_of_path
@@ -276,7 +314,7 @@ def _make_relative(cmds):
     for cmd in cmds:
         if cmd[0].lower() == cmd[0]:
             new_cmd = cmd
-        elif cmd[0].lower() == 'z':
+        elif cmd[0].lower() == "z":
             new_cmd = [cmd[0].lower()]
         else:
             new_cmd = [cmd[0].lower()] + _convert_args(cmd[1:], curr_pos, cmd=cmd[0])
@@ -286,14 +324,14 @@ def _make_relative(cmds):
 
 
 def _is_to_left_of(pt1, pt2):
-    pt1_norm = (pt1[0]**2 + pt1[1]**2)
-    pt2_norm = (pt2[0]**2 + pt2[1]**2)
+    pt1_norm = pt1[0] ** 2 + pt1[1] ** 2
+    pt2_norm = pt2[0] ** 2 + pt2[1] ** 2
     return pt1[1] < pt2[1] or (pt1_norm == pt2_norm and pt1[0] < pt2[0])
 
 
 def _get_leftmost_point(path):
     """Returns the leftmost, topmost point of the path."""
-    leftmost = (float('inf'), float('inf'))
+    leftmost = (float("inf"), float("inf"))
     idx = -1
 
     for i, cmd in enumerate(path):
@@ -311,7 +349,7 @@ def _separate_substructures(path):
     substructures = []
     curr = []
     for cmd in path:
-        if cmd[0] in 'mM' and curr:
+        if cmd[0] in "mM" and curr:
             substructures.append(curr)
             curr = []
         curr.append(cmd)
@@ -325,7 +363,7 @@ def _is_clockwise(subpath):
     pts = [cmd[-2:] for cmd in subpath]
     det = 0
     for i in range(len(pts) - 1):
-        det += np.linalg.det(pts[i:i + 2])
+        det += np.linalg.det(pts[i : i + 2])
     return det > 0
 
 
@@ -340,8 +378,15 @@ def _make_clockwise(subpath):
             where_we_were = other_cmds[i + 1][-2:]
 
         if len(cmd) > 3:
-            new_cmd = [cmd[0], cmd[3], cmd[4], cmd[1], cmd[2],
-                       where_we_were[0], where_we_were[1]]
+            new_cmd = [
+                cmd[0],
+                cmd[3],
+                cmd[4],
+                cmd[1],
+                cmd[2],
+                where_we_were[0],
+                where_we_were[1],
+            ]
         else:
             new_cmd = [cmd[0], where_we_were[0], where_we_were[1]]
 
@@ -352,22 +397,26 @@ def _make_clockwise(subpath):
 def _canonicalize(path):
     """Makes all paths start at top left, and go clockwise first."""
     # convert args to floats
-    #print(len(path),path)
-    
+    # print(len(path),path)
+
     path = [[x[0]] + list(map(float, x[1:])) for x in path]
-   # print(len(path),path)
-    
+    # print(len(path),path)
+
     # _canonicalize each subpath separately
-    #pdb.set_trace()
-    
+    # pdb.set_trace()
+
     new_substructures = []
     for subpath in _separate_substructures(path):
-      #  print(subpath,"\n")
+        #  print(subpath,"\n")
         leftmost_point, leftmost_idx = _get_leftmost_point(subpath)
-        reordered = ([['M', leftmost_point[0], leftmost_point[1]]] + subpath[leftmost_idx + 1:] + subpath[1:leftmost_idx + 1])
+        reordered = (
+            [["M", leftmost_point[0], leftmost_point[1]]]
+            + subpath[leftmost_idx + 1 :]
+            + subpath[1 : leftmost_idx + 1]
+        )
         new_substructures.append((reordered, leftmost_point))
-        
-   # sys.exit()
+
+    # sys.exit()
     new_path = []
     first_substructure_done = False
     should_flip_cardinality = False
@@ -427,7 +476,7 @@ def _cmd_to_vector(cmd_list, categorical=False):
     UM_ARGS = {'v': 1, 'V': 1, 'h': 1, 'H': 1, 'a': 7, 'A': 7, 'l': 2, 'L': 2,
             't': 2, 'T': 2, 'c': 6, 'C': 6, 'm': 2, 'M': 2, 's': 4, 'S': 4,
             'q': 4, 'Q': 4, 'z': 0}
-            
+
     CMDS_LIST = 'zhvmltsqcaHVMLTSQCA'
     CMD_MAPPING = {cmd: i for i, cmd in enumerate(CMDS_LIST)}
     """
@@ -441,30 +490,30 @@ def _cmd_to_vector(cmd_list, categorical=False):
         command = [float(CMD_MAPPING[cmd])]
     else:
         # one hot + 1 dim for EOS.
-        command = [0.0] * (len(CMDS_LIST) + 1) # 大概有19个commands?
+        command = [0.0] * (len(CMDS_LIST) + 1)  # 大概有19个commands?
         command[CMD_MAPPING[cmd] + 1] = 1.0
 
     arguments = [0.0] * 10
-    if cmd in 'hH':
+    if cmd in "hH":
         arguments[8] = float(args[0])  # x
-    elif cmd in 'vV':
+    elif cmd in "vV":
         arguments[9] = float(args[0])  # y
-    elif cmd in 'mMlLtT':
+    elif cmd in "mMlLtT":
         arguments[8] = float(args[0])  # x
         arguments[9] = float(args[1])  # y
-    elif cmd in 'sSqQ':
+    elif cmd in "sSqQ":
         arguments[6] = float(args[0])  # x2
         arguments[7] = float(args[1])  # y2
         arguments[8] = float(args[2])  # x
         arguments[9] = float(args[3])  # y
-    elif cmd in 'cC':
+    elif cmd in "cC":
         arguments[4] = float(args[0])  # x1
         arguments[5] = float(args[1])  # y1
         arguments[6] = float(args[2])  # x2
         arguments[7] = float(args[3])  # y2
         arguments[8] = float(args[4])  # x
         arguments[9] = float(args[5])  # y
-    elif cmd in 'aA':
+    elif cmd in "aA":
         arguments[0] = float(args[0])  # rx
         arguments[1] = float(args[1])  # ry
         # we skip x-axis-rotation
@@ -484,8 +533,8 @@ def _cubicbezier(x0, y0, x1, y1, x2, y2, x3, y3, n=40):
     pts = []
     for i in range(n + 1):
         t = float(i) / float(n)
-        a = (1. - t)**3
-        b = 3. * t * (1. - t)**2
+        a = (1.0 - t) ** 3
+        b = 3.0 * t * (1.0 - t) ** 2
         c = 3.0 * t**2 * (1.0 - t)
         d = t**3
 
@@ -514,10 +563,16 @@ def _render_cubic(canvas, curr_pos, c_args, absolute, color):
         c_args[3] += curr_pos[1]
         c_args[4] += curr_pos[0]
         c_args[5] += curr_pos[1]
-    x, y = _cubicbezier(curr_pos[0], curr_pos[1],
-                        c_args[0], c_args[1],
-                        c_args[2], c_args[3],
-                        c_args[4], c_args[5])
+    x, y = _cubicbezier(
+        curr_pos[0],
+        curr_pos[1],
+        c_args[0],
+        c_args[1],
+        c_args[2],
+        c_args[3],
+        c_args[4],
+        c_args[5],
+    )
     max_possible = len(canvas)
     x = [int(round(x_)) for x_ in x]
     y = [int(round(y_)) for y_ in y]
@@ -525,8 +580,9 @@ def _render_cubic(canvas, curr_pos, c_args, absolute, color):
     def within_range(x):
         return 0 <= x < max_possible
 
-    filtered = [(x_, y_) for x_, y_ in zip(x, y)
-                if within_range(x_) and within_range(y_)]
+    filtered = [
+        (x_, y_) for x_, y_ in zip(x, y) if within_range(x_) and within_range(y_)
+    ]
     if not filtered:
         return
     x, y = list(zip(*filtered))
@@ -539,16 +595,18 @@ def _render_line(canvas, curr_pos, l_args, absolute, color):
     if not absolute:
         end_point[0] += curr_pos[0]
         end_point[1] += curr_pos[1]
-    rr, cc, val = draw.line_aa(int(curr_pos[0]), int(curr_pos[1]),
-                               int(end_point[0]), int(end_point[1]))
+    rr, cc, val = draw.line_aa(
+        int(curr_pos[0]), int(curr_pos[1]), int(end_point[0]), int(end_point[1])
+    )
 
     max_possible = len(canvas)
 
     def within_range(x):
         return 0 <= x < max_possible
 
-    filtered = [(x, y, v) for x, y, v in zip(rr, cc, val)
-                if within_range(x) and within_range(y)]
+    filtered = [
+        (x, y, v) for x, y, v in zip(rr, cc, val) if within_range(x) and within_range(y)
+    ]
     if not filtered:
         return
     rr, cc, val = list(zip(*filtered))
@@ -558,27 +616,32 @@ def _render_line(canvas, curr_pos, l_args, absolute, color):
 
 def _per_step_render(path, absolute=False, color=constant_color):
     """Render the icon's edges, given its path."""
+
     def to_canvas_size(l):
-        return [float(f) * (64. / 24.) for f in l]
+        return [float(f) * (64.0 / 24.0) for f in l]
 
     canvas = np.zeros((64, 64, 3))
     curr_pos = (0.0, 0.0)
     for i, cmd in enumerate(path):
         if not cmd:
             continue
-        if cmd[0] in 'mM':
+        if cmd[0] in "mM":
             curr_pos = _update_pos(curr_pos, to_canvas_size(cmd[-2:]), absolute)
-        elif cmd[0] in 'cC':
-            _render_cubic(canvas, curr_pos, to_canvas_size(cmd[1:]), absolute, color(i, 55))
+        elif cmd[0] in "cC":
+            _render_cubic(
+                canvas, curr_pos, to_canvas_size(cmd[1:]), absolute, color(i, 55)
+            )
             curr_pos = _update_pos(curr_pos, to_canvas_size(cmd[-2:]), absolute)
-        elif cmd[0] in 'lL':
-            _render_line(canvas, curr_pos, to_canvas_size(cmd[1:]), absolute, color(i, 55))
+        elif cmd[0] in "lL":
+            _render_line(
+                canvas, curr_pos, to_canvas_size(cmd[1:]), absolute, color(i, 55)
+            )
             curr_pos = _update_pos(curr_pos, to_canvas_size(cmd[1:]), absolute)
 
     return canvas
 
 
-def _zoom_out(path_list, add_baseline=0., per=22):
+def _zoom_out(path_list, add_baseline=0.0, per=22):
     """Makes glyph slightly smaller in viewbox, makes some descenders visible."""
     # assumes tensor is already unnormalized, and in long form
     new_path = []
@@ -587,7 +650,7 @@ def _zoom_out(path_list, add_baseline=0., per=22):
         is_even = False
         for arg in command[1:]:
             if is_even:
-                args.append(str(float(arg) - ((24. - per) / 24.) * 64. / 4.))
+                args.append(str(float(arg) - ((24.0 - per) / 24.0) * 64.0 / 4.0))
                 is_even = False
             else:
                 args.append(str(float(arg) - add_baseline))
@@ -613,15 +676,21 @@ def _make_simple_cmds_long(out):
     # the first 4 are respectively dims 0, 4, 5, 9 of the full 20-dim onehot vec
     # the latter 6 are the 6 last dims of the 10-dim arg vec
     shape_minus_dim = list(np.shape(out))[:-1]
-   # print("make?  ",shape_minus_dim ) # [51]
-                              
-    return np.concatenate([out[..., :1], # [51,1]  51个steps的第1维特征
-                           np.zeros(shape_minus_dim + [3]),# [51,3]
-                           out[..., 1:3], #[51,2]
-                           np.zeros(shape_minus_dim + [3]),# [51,3]
-                           out[..., 3:4],# [51,1]
-                           np.zeros(shape_minus_dim + [14]),# [51,14]
-                           out[..., 4:]], -1)# [51,6] # 最后的6个绘制参数
+    # print("make?  ",shape_minus_dim ) # [51]
+
+    return np.concatenate(
+        [
+            out[..., :1],  # [51,1]  51个steps的第1维特征
+            np.zeros(shape_minus_dim + [3]),  # [51,3]
+            out[..., 1:3],  # [51,2]
+            np.zeros(shape_minus_dim + [3]),  # [51,3]
+            out[..., 3:4],  # [51,1]
+            np.zeros(shape_minus_dim + [14]),  # [51,14]
+            out[..., 4:],
+        ],
+        -1,
+    )  # [51,6] # 最后的6个绘制参数
+
 
 def render(tensor, data_dir=None):
     """Converts SVG decoder output into HTML svg."""
@@ -630,31 +699,30 @@ def render(tensor, data_dir=None):
     # tensor = (tensor * stdev_npz) + mean_npz
 
     # convert to html
-    #print("before",tensor.shape)# 51, 10)
+    # print("before",tensor.shape)# 51, 10)
     tensor = _make_simple_cmds_long(tensor)
-   # print("after",tensor.shape)#(51, 30)
+    # print("after",tensor.shape)#(51, 30)
     # vector = np.squeeze(np.squeeze(tensor, 0), 2)
-   # print("1",tensor[0,:5])# (51, 30)
+    # print("1",tensor[0,:5])# (51, 30)
     html = _vector_to_svg(tensor, stop_at_eos=True, categorical=True)
-   # print(html.shape)
+    # print(html.shape)
     # some aesthetic postprocessing
     html = postprocess(html)
-    html = html.replace('256px', '50px')
+    html = html.replace("256px", "50px")
 
     return html
 
+
 ################# UTILS FOR CONVERTING VECTORS TO SVGS ########################
-#note: transform the decoded trg_seq into the common svg format.把decode出来的seq转成html的svg，命令有前后关系，也都是相对位置。
+# note: transform the decoded trg_seq into the common svg format.把decode出来的seq转成html的svg，命令有前后关系，也都是相对位置。
 def _vector_to_svg(vectors, stop_at_eos=False, categorical=False):
-    """Tranforms a given vector to an svg string.
-    
-    """
+    """Tranforms a given vector to an svg string."""
     new_path = []
     for vector in vectors:
         if stop_at_eos:
             if categorical:
                 try:
-                    is_eos = np.argmax(vector[:len(CMDS_LIST) + 1]) == 0
+                    is_eos = np.argmax(vector[: len(CMDS_LIST) + 1]) == 0
                 except Exception:
                     raise Exception(vector)
             else:
@@ -662,39 +730,41 @@ def _vector_to_svg(vectors, stop_at_eos=False, categorical=False):
 
             if is_eos:
                 break
-        new_path.append(' '.join(_vector_to_cmd(vector, categorical=categorical))) #
-    new_path = ' '.join(new_path) # 加入new_path，每个path都以空格分隔
+        new_path.append(" ".join(_vector_to_cmd(vector, categorical=categorical)))  #
+    new_path = " ".join(new_path)  # 加入new_path，每个path都以空格分隔
     return SVG_PREFIX_BIG + PATH_PREFIX_1 + new_path + PATH_POSFIX_1 + SVG_POSFIX
+
 
 def _vector_to_path(vectors):
     new_path = []
     for vector in vectors:
-        #print(vector,"???")
-        new_path.append(_vector_to_cmd(vector,categorical=True)) #
-        #print(_vector_to_cmd(vector),"hhh")
-   # new_path = ' '.join(new_path) # 加入new_path，每个path都以空格分隔
+        # print(vector,"???")
+        new_path.append(_vector_to_cmd(vector, categorical=True))  #
+        # print(_vector_to_cmd(vector),"hhh")
+    # new_path = ' '.join(new_path) # 加入new_path，每个path都以空格分隔
     return new_path
+
 
 def _vector_to_cmd(vector, categorical=False, return_floats=False):
     """Does the inverse transformation as _cmd_to_vector().
         UM_ARGS = {'v': 1, 'V': 1, 'h': 1, 'H': 1, 'a': 7, 'A': 7, 'l': 2, 'L': 2,
             't': 2, 'T': 2, 'c': 6, 'C': 6, 'm': 2, 'M': 2, 's': 4, 'S': 4,
             'q': 4, 'Q': 4, 'z': 0}
-            
+
     CMDS_LIST = 'zhvmltsqcaHVMLTSQCA'
     CMD_MAPPING = {cmd: i for i, cmd in enumerate(CMDS_LIST)}
 
     """
     cast_fn = float if return_floats else str
     if categorical:
-       # print(vector.shape,vector)# 30
-        #print("??",len(CMDS_LIST)) # 19
-        command = vector[:len(CMDS_LIST) + 1],# 前20维
-        arguments = vector[len(CMDS_LIST) + 1:]# 后10维
-        cmd_idx = np.argmax(command) - 1 # 看当前绘制命令属于哪一类
-       
+        # print(vector.shape,vector)# 30
+        # print("??",len(CMDS_LIST)) # 19
+        command = (vector[: len(CMDS_LIST) + 1],)  # 前20维
+        arguments = vector[len(CMDS_LIST) + 1 :]  # 后10维
+        cmd_idx = np.argmax(command) - 1  # 看当前绘制命令属于哪一类
+
     else:
-        
+
         command, arguments = vector[:1], vector[1:]
         cmd_idx = int(round(command[0]))
 
@@ -708,47 +778,49 @@ def _vector_to_cmd(vector, categorical=False, return_floats=False):
     cmd = cmd.upper()
     cmd_list = [cmd]
 
-    if cmd in 'hH': # 如果是画线，而且是x轴
+    if cmd in "hH":  # 如果是画线，而且是x轴
         cmd_list.append(cast_fn(arguments[8]))  # x
-    elif cmd in 'vV': # 如果是画线，而且是y轴
+    elif cmd in "vV":  # 如果是画线，而且是y轴
         cmd_list.append(cast_fn(arguments[9]))  # y
-    elif cmd in 'mMlLtT':
+    elif cmd in "mMlLtT":
         cmd_list.append(cast_fn(arguments[8]))  # x
         cmd_list.append(cast_fn(arguments[9]))  # y
-    elif cmd in 'sSqQ':
+    elif cmd in "sSqQ":
         cmd_list.append(cast_fn(arguments[6]))  # x2
         cmd_list.append(cast_fn(arguments[7]))  # y2
         cmd_list.append(cast_fn(arguments[8]))  # x
         cmd_list.append(cast_fn(arguments[9]))  # y
-    elif cmd in 'cC':
+    elif cmd in "cC":
         cmd_list.append(cast_fn(arguments[4]))  # x1
         cmd_list.append(cast_fn(arguments[5]))  # y1
         cmd_list.append(cast_fn(arguments[6]))  # x2
         cmd_list.append(cast_fn(arguments[7]))  # y2
         cmd_list.append(cast_fn(arguments[8]))  # x
         cmd_list.append(cast_fn(arguments[9]))  # y
-    elif cmd in 'aA':
+    elif cmd in "aA":
         cmd_list.append(cast_fn(arguments[0]))  # rx
         cmd_list.append(cast_fn(arguments[1]))  # ry
         # x-axis-rotation is always 0
-        cmd_list.append(cast_fn('0'))
+        cmd_list.append(cast_fn("0"))
         # the following two flags are binary.
         cmd_list.append(cast_fn(1 if arguments[2] > 0.5 else 0))  # large-arc-flag
         cmd_list.append(cast_fn(1 if arguments[3] > 0.5 else 0))  # sweep-flag
         cmd_list.append(cast_fn(arguments[8]))  # x
         cmd_list.append(cast_fn(arguments[9]))  # y
-   
+
     return cmd_list
 
 
 ############## UTILS FOR CONVERTING SVGS/VECTORS TO IMAGES ###################
 
 # From Infer notebook
-start = ("""<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www."""
-         """w3.org/1999/xlink" width="256px" height="256px" style="-ms-trans"""
-         """form: rotate(360deg); -webkit-transform: rotate(360deg); transfo"""
-         """rm: rotate(360deg);" preserveAspectRatio="xMidYMid meet" viewBox"""
-         """="0 0 24 24"><path d=\"""")
+start = (
+    """<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www."""
+    """w3.org/1999/xlink" width="256px" height="256px" style="-ms-trans"""
+    """form: rotate(360deg); -webkit-transform: rotate(360deg); transfo"""
+    """rm: rotate(360deg);" preserveAspectRatio="xMidYMid meet" viewBox"""
+    """="0 0 24 24"><path d=\""""
+)
 end = """\" fill="currentColor"/></svg>"""
 
 COMMAND_RX = re.compile("([MmLlHhVvCcSsQqTtAaZz])")
@@ -756,14 +828,14 @@ FLOAT_RX = re.compile("[-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?")  # noqa
 
 
 def svg_html_to_path_string(svg):
-    return svg.replace(start, '').replace(end, '')
+    return svg.replace(start, "").replace(end, "")
 
 
 def _tokenize(pathdef):
     """Returns each svg token from path list."""
     # e.g.: 'm0.1-.5c0,6' -> m', '0.1, '-.5', 'c', '0', '6'
     for x in COMMAND_RX.split(pathdef):
-        if x != '' and x in 'MmLlHhVvCcSsQqTtAaZz':
+        if x != "" and x in "MmLlHhVvCcSsQqTtAaZz":
             yield x
         for token in FLOAT_RX.findall(x):
             yield token
@@ -780,7 +852,7 @@ def path_string_to_tokenized_commands(path):
     current_cmd = []
     for token in _tokenize(path):
         if len(current_cmd) > 0:
-            if token in 'MmLlHhVvCcSsQqTtAaZz':
+            if token in "MmLlHhVvCcSsQqTtAaZz":
                 # cmd ended, convert to vector and add to new_path
                 new_path.append(current_cmd)
                 current_cmd = [token]
@@ -799,102 +871,130 @@ def path_string_to_tokenized_commands(path):
 
 
 def separate_substructures(tokenized_commands):
-  """Returns a list of SVG substructures."""
-  # every moveTo command starts a new substructure
-  # an SVG substructure is a subpath that closes on itself
-  # such as the outter and the inner edge of the character `o`
-  substructures = []
-  curr = []
-  for cmd in tokenized_commands:
-    if cmd[0] in 'mM' and len(curr) > 0:
-      substructures.append(curr)
-      curr = []
-    curr.append(cmd)
-  if len(curr) > 0:
-    substructures.append(curr)
-  return substructures
+    """Returns a list of SVG substructures."""
+    # every moveTo command starts a new substructure
+    # an SVG substructure is a subpath that closes on itself
+    # such as the outter and the inner edge of the character `o`
+    substructures = []
+    curr = []
+    for cmd in tokenized_commands:
+        if cmd[0] in "mM" and len(curr) > 0:
+            substructures.append(curr)
+            curr = []
+        curr.append(cmd)
+    if len(curr) > 0:
+        substructures.append(curr)
+    return substructures
 
 
-def postprocess(svg, dist_thresh=2., skip=False):
+def postprocess(svg, dist_thresh=2.0, skip=False):
     path = svg_html_to_path_string(svg)
-    #print(svg)
-    svg_template = svg.replace(path, '{}')
+    # print(svg)
+    svg_template = svg.replace(path, "{}")
     tokenized_commands = path_string_to_tokenized_commands(path)
 
     def dist(a, b):
-        return np.sqrt((float(a[0]) - float(b[0]))**2 + (float(a[1]) - float(b[1]))**2)
+        return np.sqrt(
+            (float(a[0]) - float(b[0])) ** 2 + (float(a[1]) - float(b[1])) ** 2
+        )
 
     def are_close_together(a, b, t):
         return dist(a, b) < t
 
     # first, go through each start/end point and merge if they're close enough
     # together (that is, make end point the same as the start point).
-    # TODO: there are better ways of doing this, in a way that propagates errors. 
+    # TODO: there are better ways of doing this, in a way that propagates errors.
     # back (so if total error is 0.2, go through all N commands in this
     # substructure and fix each by 0.2/N (unless they have 0 vertical change))
-    # NOTE: this is the same.  
+    # NOTE: this is the same.
     substructures = separate_substructures(tokenized_commands)
-   # print(len(substructures))# 7578
+    # print(len(substructures))# 7578
 
-    previous_substructure_endpoint = (0., 0.,)
+    previous_substructure_endpoint = (
+        0.0,
+        0.0,
+    )
     for substructure in substructures:
         # first, if the last substructure's endpoint was updated, we must update
         # the start point of this one to reflect the opposite update
-        substructure[0][-2] = str(float(substructure[0][-2]) -
-                                  previous_substructure_endpoint[0])
-        substructure[0][-1] = str(float(substructure[0][-1]) -
-                                  previous_substructure_endpoint[1])
+        substructure[0][-2] = str(
+            float(substructure[0][-2]) - previous_substructure_endpoint[0]
+        )
+        substructure[0][-1] = str(
+            float(substructure[0][-1]) - previous_substructure_endpoint[1]
+        )
 
         start = list(map(float, substructure[0][-2:]))
-        curr_pos = (0., 0.)
+        curr_pos = (0.0, 0.0)
         for cmd in substructure:
-            curr_pos, _ = _update_curr_pos(curr_pos, cmd, (0., 0.))
+            curr_pos, _ = _update_curr_pos(curr_pos, cmd, (0.0, 0.0))
         if are_close_together(start, curr_pos, dist_thresh):
             new_point = np.array(start)
-            previous_substructure_endpoint = ((new_point[0] - curr_pos[0]),
-                                              (new_point[1] - curr_pos[1]))
-            substructure[-1][-2] = str(float(substructure[-1][-2]) +
-                                       (new_point[0] - curr_pos[0]))
-            substructure[-1][-1] = str(float(substructure[-1][-1]) +
-                                       (new_point[1] - curr_pos[1]))
-            if substructure[-1][0] in 'cC':
-                substructure[-1][-4] = str(float(substructure[-1][-4]) +
-                                           (new_point[0] - curr_pos[0]))
-                substructure[-1][-3] = str(float(substructure[-1][-3]) +
-                                           (new_point[1] - curr_pos[1]))
+            previous_substructure_endpoint = (
+                (new_point[0] - curr_pos[0]),
+                (new_point[1] - curr_pos[1]),
+            )
+            substructure[-1][-2] = str(
+                float(substructure[-1][-2]) + (new_point[0] - curr_pos[0])
+            )
+            substructure[-1][-1] = str(
+                float(substructure[-1][-1]) + (new_point[1] - curr_pos[1])
+            )
+            if substructure[-1][0] in "cC":
+                substructure[-1][-4] = str(
+                    float(substructure[-1][-4]) + (new_point[0] - curr_pos[0])
+                )
+                substructure[-1][-3] = str(
+                    float(substructure[-1][-3]) + (new_point[1] - curr_pos[1])
+                )
 
     if skip:
-        return svg_template.format(' '.join([' '.join(' '.join(cmd) for cmd in s)
-                                             for s in substructures]))
+        return svg_template.format(
+            " ".join([" ".join(" ".join(cmd) for cmd in s) for s in substructures])
+        )
 
     def cosa(x, y):
-        return (x[0] * y[0] + x[1] * y[1]) / ((np.sqrt(x[0]**2 + x[1]**2) * np.sqrt(y[0]**2 + y[1]**2)))
+        return (x[0] * y[0] + x[1] * y[1]) / (
+            (np.sqrt(x[0] ** 2 + x[1] ** 2) * np.sqrt(y[0] ** 2 + y[1] ** 2))
+        )
 
     def rotate(a, x, y):
         return (x * np.cos(a) - y * np.sin(a), y * np.cos(a) + x * np.sin(a))
+
     # second, gotta find adjacent bezier curves and, if their control points
     # are well enough aligned, fully align them
     for substructure in substructures:
-        curr_pos = (0., 0.)
-        new_curr_pos, _ = _update_curr_pos((0., 0.,), substructure[0], (0., 0.))
+        curr_pos = (0.0, 0.0)
+        new_curr_pos, _ = _update_curr_pos(
+            (
+                0.0,
+                0.0,
+            ),
+            substructure[0],
+            (0.0, 0.0),
+        )
 
         for cmd_idx in range(1, len(substructure)):
-            prev_cmd = substructure[cmd_idx-1]
+            prev_cmd = substructure[cmd_idx - 1]
             cmd = substructure[cmd_idx]
 
-            new_new_curr_pos, _ = _update_curr_pos(new_curr_pos, cmd, (0., 0.))
+            new_new_curr_pos, _ = _update_curr_pos(new_curr_pos, cmd, (0.0, 0.0))
 
-            if cmd[0] == 'c':
-                if prev_cmd[0] == 'c':
+            if cmd[0] == "c":
+                if prev_cmd[0] == "c":
                     # check the vectors and update if needed
                     # previous control pt wrt new curr point
-                    prev_ctr_point = (curr_pos[0] + float(prev_cmd[3]) - new_curr_pos[0],
-                                      curr_pos[1] + float(prev_cmd[4]) - new_curr_pos[1])
+                    prev_ctr_point = (
+                        curr_pos[0] + float(prev_cmd[3]) - new_curr_pos[0],
+                        curr_pos[1] + float(prev_cmd[4]) - new_curr_pos[1],
+                    )
                     ctr_point = (float(cmd[1]), float(cmd[2]))
 
-                    if -1. < cosa(prev_ctr_point, ctr_point) < -0.95:
+                    if -1.0 < cosa(prev_ctr_point, ctr_point) < -0.95:
                         # calculate exact angle between the two vectors
-                        angle_diff = (np.pi - np.arccos(cosa(prev_ctr_point, ctr_point)))/2
+                        angle_diff = (
+                            np.pi - np.arccos(cosa(prev_ctr_point, ctr_point))
+                        ) / 2
 
                         # rotate each vector by angle/2 in the correct direction for each.
                         sign = np.sign(np.cross(prev_ctr_point, ctr_point))
@@ -903,22 +1003,22 @@ def postprocess(svg, dist_thresh=2., skip=False):
 
                         # override the previous control points
                         # (which has to be wrt previous curr position)
-                        substructure[cmd_idx-1][3] = str(new_prev_ctr_point[0] -
-                                                         curr_pos[0] + new_curr_pos[0])
-                        substructure[cmd_idx-1][4] = str(new_prev_ctr_point[1] -
-                                                         curr_pos[1] + new_curr_pos[1])
+                        substructure[cmd_idx - 1][3] = str(
+                            new_prev_ctr_point[0] - curr_pos[0] + new_curr_pos[0]
+                        )
+                        substructure[cmd_idx - 1][4] = str(
+                            new_prev_ctr_point[1] - curr_pos[1] + new_curr_pos[1]
+                        )
                         substructure[cmd_idx][1] = str(new_ctr_point[0])
                         substructure[cmd_idx][2] = str(new_ctr_point[1])
 
             curr_pos = new_curr_pos
             new_curr_pos = new_new_curr_pos
-        
-   # print('0',substructures)
-    return svg_template.format(' '.join([' '.join(' '.join(cmd) for cmd in s)
-                                         for s in substructures]))
 
-
-
+    # print('0',substructures)
+    return svg_template.format(
+        " ".join([" ".join(" ".join(cmd) for cmd in s) for s in substructures])
+    )
 
 
 # def get_means_stdevs(data_dir):
@@ -930,8 +1030,6 @@ def postprocess(svg, dist_thresh=2., skip=False):
 #             stdev_npz = np.load(f)
 #         means_stdevs[data_dir] = (mean_npz, stdev_npz)
 #     return means_stdevs[data_dir]
-
-
 
 
 ###############
@@ -946,6 +1044,7 @@ def convert_to_svg(decoder_output, categorical=False):
 
 def create_image_conversion_fn(max_outputs, categorical=False):
     """Binds the number of outputs to the image conversion fn (to svg or png)."""
+
     def convert_to_svg(decoder_output):
         converted = []
         for example in decoder_output:
@@ -959,28 +1058,28 @@ def create_image_conversion_fn(max_outputs, categorical=False):
 
 ################### UTILS FOR CREATING TF SUMMARIES ##########################
 def _make_encoded_image(img_tensor):
-    pil_img = Image.fromarray(np.squeeze(img_tensor * 255).astype(np.uint8), mode='L')
+    pil_img = Image.fromarray(np.squeeze(img_tensor * 255).astype(np.uint8), mode="L")
     buff = io.BytesIO()
-    pil_img.save(buff, format='png')
+    pil_img.save(buff, format="png")
     encoded_image = buff.getvalue()
     return encoded_image
 
 
 ################### CHECK GLYPH/PATH VALID ##############################################
 def is_valid_glyph(g):
-    is_09 = 48 <= g['uni'] <= 57
-    is_capital_az = 65 <= g['uni'] <= 90
-    is_az = 97 <= g['uni'] <= 122
-    is_valid_dims = g['width'] != 0 and g['vwidth'] != 0
+    is_09 = 48 <= g["uni"] <= 57
+    is_capital_az = 65 <= g["uni"] <= 90
+    is_az = 97 <= g["uni"] <= 122
+    is_valid_dims = g["width"] != 0 and g["vwidth"] != 0
     return (is_09 or is_capital_az or is_az) and is_valid_dims
 
 
 def is_valid_path(pathunibfp):
-   # print(len(pathunibfp[0]))
-    if len(pathunibfp[0])>70:
-        print("!!!more than 400",len(pathunibfp[0]))
-       # sys.exit()
-    return pathunibfp[0] and len(pathunibfp[0]) <= 70,len(pathunibfp[0])
+    # print(len(pathunibfp[0]))
+    if len(pathunibfp[0]) > 70:
+        print("!!!more than 400", len(pathunibfp[0]))
+    # sys.exit()
+    return pathunibfp[0] and len(pathunibfp[0]) <= 70, len(pathunibfp[0])
 
 
 ################### DATASET PROCESSING #######################################
@@ -988,30 +1087,34 @@ def convert_to_path(g):
     """Converts SplineSet in SFD font to str path."""
     path = _sfd_to_path_list(g)
     path = _add_missing_cmds(path, remove_zs=False)
-    path = _normalize_based_on_viewbox(path, '0 0 {} {}'.format(g['width'], g['vwidth']))
-    return path, g['uni'], g['binary_fp']
+    path = _normalize_based_on_viewbox(
+        path, "0 0 {} {}".format(g["width"], g["vwidth"])
+    )
+    return path, g["uni"], g["binary_fp"]
+
+
 def convert_simple_vector_to_path(seq):
-    path=[]
+    path = []
     for i in range(seq.shape[0]):
-       # seq_i = seq[i]
-        path_i=[]
-        cmd  = np.argmax(seq[i][:4])
-       # args = seq[i][4:]
+        # seq_i = seq[i]
+        path_i = []
+        cmd = np.argmax(seq[i][:4])
+        # args = seq[i][4:]
         p0 = seq[i][4:6]
         p1 = seq[i][6:8]
         p2 = seq[i][8:10]
         if cmd == 0:
             break
-        elif cmd==1:
-            path_i.append('M')
+        elif cmd == 1:
+            path_i.append("M")
             path_i.append(str(p2[0]))
             path_i.append(str(p2[1]))
-        elif cmd==2:
-            path_i.append('L')
+        elif cmd == 2:
+            path_i.append("L")
             path_i.append(str(p2[0]))
             path_i.append(str(p2[1]))
-        elif cmd==3:
-            path_i.append('C')
+        elif cmd == 3:
+            path_i.append("C")
             path_i.append(str(p0[0]))
             path_i.append(str(p0[1]))
             path_i.append(str(p1[0]))
@@ -1023,25 +1126,33 @@ def convert_simple_vector_to_path(seq):
             sys.exit()
         path.append(path_i)
     return path
-   # print("jjj")
+
+
+# print("jjj")
 def clockwise(seq):
-    #pdb.set_trace()
-    path=convert_simple_vector_to_path(seq)
+    # pdb.set_trace()
+    path = convert_simple_vector_to_path(seq)
     path = _canonicalize(path)
     final = {}
-    final['rendered'] = _per_step_render(path, absolute=True)
+    final["rendered"] = _per_step_render(path, absolute=True)
     vector = _path_to_vector(path, categorical=True)
     vector = np.array(vector)
-  #  print(vector.shape,vector[:,9])# note vector: 12,30
-  
-    vector = np.concatenate([np.take(vector, [0, 4, 5, 9], axis=-1), vector[..., -6:]], axis=-1)
-    final['seq_len'] = np.shape(vector)[0]
+    #  print(vector.shape,vector[:,9])# note vector: 12,30
+
+    vector = np.concatenate(
+        [np.take(vector, [0, 4, 5, 9], axis=-1), vector[..., -6:]], axis=-1
+    )
+    final["seq_len"] = np.shape(vector)[0]
     vector = _append_eos(vector.tolist(), True, 10)
-    final['sequence'] = np.concatenate((vector, np.zeros(((70 - final['seq_len']), 10))), 0)
-    final['rendered'] = np.reshape(final['rendered'][..., 0], [64 * 64]).astype(np.float32).tolist()
+    final["sequence"] = np.concatenate(
+        (vector, np.zeros(((70 - final["seq_len"]), 10))), 0
+    )
+    final["rendered"] = (
+        np.reshape(final["rendered"][..., 0], [64 * 64]).astype(np.float32).tolist()
+    )
     return final
-    
-    
+
+
 def create_example(pathunibfp):
     """Bulk of dataset processing. Converts str path to np array"""
     path, uni, binary_fp = pathunibfp
@@ -1053,69 +1164,78 @@ def create_example(pathunibfp):
     path = _canonicalize(path)
 
     # render path for training
-    final['rendered'] = _per_step_render(path, absolute=True)
+    final["rendered"] = _per_step_render(path, absolute=True)
 
     # make path relative
-    #path = _make_relative(path) # note 不rela 直接是绝对的
+    # path = _make_relative(path) # note 不rela 直接是绝对的
     # convert to vector
     vector = _path_to_vector(path, categorical=True)
 
+    # path2 = _vector_to_path(vector)# note vector转成path
+    # print(path2)
+    # print(path==path2)
 
-
-   # path2 = _vector_to_path(vector)# note vector转成path
-    #print(path2)
-    #print(path==path2)
-    
     vector = np.array(vector)
-  #  print(vector.shape,vector[:,9])# note vector: 12,30
-    vector = np.concatenate([np.take(vector, [0, 4, 5, 9], axis=-1), vector[..., -6:]], axis=-1)
-    
-    
+    #  print(vector.shape,vector[:,9])# note vector: 12,30
+    vector = np.concatenate(
+        [np.take(vector, [0, 4, 5, 9], axis=-1), vector[..., -6:]], axis=-1
+    )
 
-    #path2 = _vector_to_path(vector)
-    #print(path,"\nhhh",path2)
-    
-    
+    # path2 = _vector_to_path(vector)
+    # print(path,"\nhhh",path2)
+
     # print("hhh",vector)
     # print(render(vector))
     # sys.exit()
     # count some stats
-    final['seq_len'] = np.shape(vector)[0]
+    final["seq_len"] = np.shape(vector)[0]
     # final['class'] = int(_map_uni_to_alphanum(uni))
-    final['class'] = int(_map_uni_to_alpha(uni))
-    final['binary_fp'] = str(binary_fp)
+    final["class"] = int(_map_uni_to_alpha(uni))
+    final["binary_fp"] = str(binary_fp)
 
     # append eos
     vector = _append_eos(vector.tolist(), True, 10)
 
     # pad path to 51 (with eos)
-#    pdb.set_trace()
+    #    pdb.set_trace()
     # if final['seq_len']>50:
-        
-   # print( final['seq_len'])
-    final['sequence'] = np.concatenate((vector, np.zeros(((70 - final['seq_len']), 10))), 0)
-    #seq = final['sequence']
-    
+
+    # print( final['seq_len'])
+    final["sequence"] = np.concatenate(
+        (vector, np.zeros(((70 - final["seq_len"]), 10))), 0
+    )
+    # seq = final['sequence']
+
     # new_path = convert_simple_vector_to_path(seq)
     # print(new_path,path2==new_path)
-    
-   # sys.exit()
+
+    # sys.exit()
     # make pure list:
     # use last channel only
-    final['rendered'] = np.reshape(final['rendered'][..., 0], [64 * 64]).astype(np.float32).tolist()
-    final['sequence'] = np.reshape(final['sequence'], [71 * 10]).astype(np.float32).tolist()
-    final['class'] = np.reshape(final['class'], [1]).astype(np.int64).tolist()
-    final['seq_len'] = np.reshape(final['seq_len'], [1]).astype(np.int64).tolist()
+    final["rendered"] = (
+        np.reshape(final["rendered"][..., 0], [64 * 64]).astype(np.float32).tolist()
+    )
+    final["sequence"] = (
+        np.reshape(final["sequence"], [71 * 10]).astype(np.float32).tolist()
+    )
+    final["class"] = np.reshape(final["class"], [1]).astype(np.int64).tolist()
+    final["seq_len"] = np.reshape(final["seq_len"], [1]).astype(np.int64).tolist()
     return final
 
 
 def mean_to_example(mean_stdev):
     """Converts the found mean and stdev to example."""
     # mean_stdev is a dict
-    mean_stdev['mean'] = np.reshape(mean_stdev['mean'], [10]).astype(np.float32).tolist()
-    mean_stdev['variance'] = np.reshape(mean_stdev['variance'], [10]).astype(np.float32).tolist()
-    mean_stdev['stddev'] = np.reshape(mean_stdev['stddev'], [10]).astype(np.float32).tolist()
-    mean_stdev['count'] = np.reshape(mean_stdev['count'], [1]).astype(np.int64).tolist()
+    mean_stdev["mean"] = (
+        np.reshape(mean_stdev["mean"], [10]).astype(np.float32).tolist()
+    )
+    mean_stdev["variance"] = (
+        np.reshape(mean_stdev["variance"], [10]).astype(np.float32).tolist()
+    )
+    mean_stdev["stddev"] = (
+        np.reshape(mean_stdev["stddev"], [10]).astype(np.float32).tolist()
+    )
+    mean_stdev["count"] = np.reshape(mean_stdev["count"], [1]).astype(np.int64).tolist()
     return mean_stdev
 
 
@@ -1131,20 +1251,23 @@ class MeanStddev:
     def add_input(self, sum_count, new_input):
         (curr_sum, sum_sq, count) = sum_count
         # new_input is a dict with keys = ['seq_len', 'sequence']
-        new_seq_len = new_input['seq_len'][0]  # Line #754 'seq_len' is a list of one int
+        new_seq_len = new_input["seq_len"][
+            0
+        ]  # Line #754 'seq_len' is a list of one int
         assert isinstance(new_seq_len, int), print(type(new_seq_len))
 
         # remove padding and eos from sequence
-        assert isinstance(new_input['sequence'], list), print(type(new_input['sequence']))
-        new_input_np = np.reshape(np.array(new_input['sequence']), [-1, 10])
+        assert isinstance(new_input["sequence"], list), print(
+            type(new_input["sequence"])
+        )
+        new_input_np = np.reshape(np.array(new_input["sequence"]), [-1, 10])
         assert isinstance(new_input_np, np.ndarray), print(type())
         assert new_input_np.shape[0] >= new_seq_len
         new_input_np = new_input_np[:new_seq_len, :]
 
         # accumulate new_sum and new_sum_sq
         new_sum = np.sum([curr_sum, np.sum(new_input_np, axis=0)], axis=0)
-        new_sum_sq = np.sum([sum_sq, np.sum(np.power(new_input_np, 2), axis=0)],
-                            axis=0)
+        new_sum_sq = np.sum([sum_sq, np.sum(np.power(new_input_np, 2), axis=0)], axis=0)
         return new_sum, new_sum_sq, count + new_seq_len
 
     def merge_accumulators(self, accumulators):
@@ -1160,15 +1283,15 @@ class MeanStddev:
             variance = np.max([variance, np.zeros(np.shape(variance))], axis=0)
             stddev = np.sqrt(variance)
             return {
-                'mean': mean,
-                'variance': variance,
-                'stddev': stddev,
-                'count': count
+                "mean": mean,
+                "variance": variance,
+                "stddev": stddev,
+                "count": count,
             }
         else:
             return {
-                'mean': float('NaN'),
-                'variance': float('NaN'),
-                'stddev': float('NaN'),
-                'count': 0
+                "mean": float("NaN"),
+                "variance": float("NaN"),
+                "stddev": float("NaN"),
+                "count": 0,
             }
