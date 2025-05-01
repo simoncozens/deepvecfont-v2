@@ -81,8 +81,8 @@ def get_parser_main_model():
 
     group = parser.add_argument_group("experiment related")
     group.add_argument("--random_index", type=str, default="00")
-    group.add_argument("--name_ckpt", type=str, default="600_192921.ckpt")
-    group.add_argument("--init_epoch", type=int, default=0, help="init epoch")
+    group.add_argument("--name_ckpt", type=str, default="600_192921")
+    group.add_argument("--restart", type=bool, help="restart training", default=False)
     group.add_argument("--n_epochs", type=int, default=800, help="number of epochs")
     group.add_argument(
         "--n_samples",
