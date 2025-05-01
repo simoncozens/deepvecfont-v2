@@ -1,10 +1,7 @@
 import copy
 import math
-import pdb
 from functools import wraps
-from math import log, pi
-from multiprocessing import context
-from textwrap import indent
+from math import pi
 
 import numpy as np
 import torch
@@ -15,7 +12,6 @@ from torch import einsum, nn
 
 from deepvecfont.data_utils.svg_utils import MAX_SEQ_LEN
 import deepvecfont.models.util_funcs as util_funcs
-from deepvecfont.options import get_parser_main_model
 
 
 class PositionalEncoding(nn.Module):
@@ -797,12 +793,9 @@ def attention(query, key, value, mask=None, trg_tri_mask=None, dropout=None, pos
         scores = scores + posr
 
     if mask is not None:
-        try:
-            scores = scores.masked_fill(
-                mask == 0, -1e9
-            )  # note mask: b,1,501,501  scores: b, head, 501,501
-        except:
-            pdb.set_trace()
+        scores = scores.masked_fill(
+            mask == 0, -1e9
+        )  # note mask: b,1,501,501  scores: b, head, 501,501
 
     if trg_tri_mask is not None:
         scores = scores.masked_fill(trg_tri_mask == 0, -1e9)
