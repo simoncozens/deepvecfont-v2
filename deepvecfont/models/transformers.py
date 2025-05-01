@@ -13,10 +13,9 @@ from einops import rearrange, repeat
 from einops.layers.torch import Rearrange, Reduce
 from torch import einsum, nn
 
-import models.util_funcs as util_funcs
-from options import get_parser_main_model
-
-opts = get_parser_main_model().parse_args()
+from deepvecfont.data_utils.svg_utils import MAX_SEQ_LEN
+import deepvecfont.models.util_funcs as util_funcs
+from deepvecfont.options import get_parser_main_model
 
 
 class PositionalEncoding(nn.Module):
@@ -177,13 +176,13 @@ class Attention(nn.Module):
 
 
 class SVGEmbedding(nn.Module):
-    def __init__(self):
+    def __init__(self, opts):
         super().__init__()
         self.command_embed = nn.Embedding(4, 512)
         self.arg_embed = nn.Embedding(128, 128, padding_idx=0)
         self.embed_fcn = nn.Linear(128 * 8, 512)
         self.pos_encoding = PositionalEncoding(
-            d_model=opts.hidden_size, max_len=opts.max_seq_len + 1
+            d_model=opts.hidden_size, max_len=MAX_SEQ_LEN + 1
         )
         self._init_embeddings()
 
@@ -218,9 +217,10 @@ class PositionwiseFeedForward(nn.Module):
 
 
 class Transformer_decoder(nn.Module):
-    def __init__(self):
+    def __init__(self, opts):
         super().__init__()
-        self.SVG_embedding = SVGEmbedding()
+        self.opts = opts
+        self.SVG_embedding = SVGEmbedding(opts)
         self.command_fcn = nn.Linear(512, 4)
         self.args_fcn = nn.Linear(512, 8 * 128)
         c = copy.deepcopy
@@ -267,7 +267,7 @@ class Transformer_decoder(nn.Module):
                 [1, 1, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
             ]
         ).to(cmd_logits.device)
-        if opts.mode == "train":
+        if self.opts.mode == "train":
             cmd2 = torch.argmax(cmd_logits, -1).unsqueeze(-1).transpose(0, 1)
             arg2 = torch.argmax(args_logits, -1).transpose(0, 1)
 
@@ -317,7 +317,7 @@ class Transformer_decoder(nn.Module):
 
         x = torch.cat([trg_char, x], 1)
         x[:, 0:1, :] = trg_char
-        x = x[:, : opts.max_seq_len, :]
+        x = x[:, :MAX_SEQ_LEN, :]
         tgt_mask = tgt_mask  # *tri
         for layer in self.decoder_layers_parallel:
             x, attn = layer(x, memory, src_mask=None, tgt_mask=tgt_mask)
@@ -339,26 +339,25 @@ def _get_key_padding_mask(commands, seq_dim=0):
     lens = []
     with torch.no_grad():
         key_padding_mask = (commands == 0).cumsum(dim=seq_dim) > 0
-        commands = commands.transpose(0, 1).squeeze(-1)  # bs, opts.max_seq_len
+        commands = commands.transpose(0, 1).squeeze(-1)  # bs, MAX_SEQ_LEN
         for i in range(commands.size(0)):
             try:
-                seqi = commands[i]  # blue opts.max_seq_len
+                seqi = commands[i]  # blue MAX_SEQ_LEN
                 index = torch.where(seqi == 0)[0][0]
 
             except:
-                index = opts.max_seq_len
+                index = MAX_SEQ_LEN
 
             lens.append(index)
         lens = torch.tensor(lens) + 1  # blue b
-        seqlen_mask = util_funcs.sequence_mask(
-            lens, opts.max_seq_len
-        )  # blue b,opts.max_seq_len
+        seqlen_mask = util_funcs.sequence_mask(lens, MAX_SEQ_LEN)  # blue b,MAX_SEQ_LEN
         return seqlen_mask
 
 
 class Transformer(nn.Module):
     def __init__(
         self,
+        opts,
         *,
         num_freq_bands,
         depth,
@@ -377,7 +376,7 @@ class Transformer(nn.Module):
         weight_tie_layers=False,
         fourier_encode_data=True,
         self_per_cross_attn=2,
-        final_classifier_head=True
+        final_classifier_head=True,
     ):
         """The shape of the final attention mechanism will be:
         depth * (cross attention -> self_per_cross_attn * self attention)
@@ -408,6 +407,7 @@ class Transformer(nn.Module):
           final_classifier_head: mean pool and project embeddings to number of classes (num_classes) at the end
         """
         super().__init__()
+        self.opts = opts
         self.input_axis = input_axis
         self.max_freq = max_freq
         self.num_freq_bands = num_freq_bands
@@ -548,9 +548,9 @@ class Transformer(nn.Module):
             if final_classifier_head
             else nn.Identity()
         )
-        self.pre_lstm_fc = nn.Linear(10, opts.hidden_size)
+        self.pre_lstm_fc = nn.Linear(10, self.opts.hidden_size)
         self.posr = PositionalEncoding(
-            d_model=opts.hidden_size, max_len=opts.max_seq_len
+            d_model=self.opts.hidden_size, max_len=MAX_SEQ_LEN
         )
 
         patch_height = 2
@@ -565,7 +565,7 @@ class Transformer(nn.Module):
             nn.Linear(patch_dim, 16),
         )
 
-        self.SVG_embedding = SVGEmbedding()
+        self.SVG_embedding = SVGEmbedding(self.opts)
         self.cls_token = nn.Parameter(torch.zeros(1, 1, 512))
 
     def forward(
@@ -621,9 +621,7 @@ class Transformer(nn.Module):
         tgt_commands = trg_seq[:, :, :1].transpose(0, 1)
         tgt_args = trg_seq[:, :, 1:].transpose(0, 1)
 
-        seqlen_mask = util_funcs.sequence_mask(trg_seqlen, opts.max_seq_len).unsqueeze(
-            -1
-        )
+        seqlen_mask = util_funcs.sequence_mask(trg_seqlen, MAX_SEQ_LEN).unsqueeze(-1)
         seqlen_mask2 = seqlen_mask.repeat(1, 1, 4)  # NOTE b,501,4
         seqlen_mask4 = seqlen_mask.repeat(1, 1, 8)
         seqlen_mask3 = seqlen_mask.unsqueeze(-1).repeat(1, 1, 8, 128)
@@ -665,16 +663,16 @@ class Transformer(nn.Module):
             ),
             1,
         )
-        args_end_shifted = args_end_shifted[:, : opts.max_seq_len, :, :]
+        args_end_shifted = args_end_shifted[:, :MAX_SEQ_LEN, :, :]
         args_end_shifted = args_end_shifted * SE_args_mask + args_end * (
             1 - SE_args_mask
         )
 
         args_start = args_prob[:, :, :2]
 
-        seqlen_mask5 = util_funcs.sequence_mask(
-            trg_seqlen - 1, opts.max_seq_len
-        ).unsqueeze(-1)
+        seqlen_mask5 = util_funcs.sequence_mask(trg_seqlen - 1, MAX_SEQ_LEN).unsqueeze(
+            -1
+        )
         seqlen_mask5 = seqlen_mask5.repeat(1, 1, 2)
 
         smooth_constrained = (
@@ -726,7 +724,7 @@ class Transformer(nn.Module):
 
         aux_pts_predict = aux_pts_curve + aux_pts_line
         seqlen_mask_aux = util_funcs.sequence_mask(
-            trg_seqlen - 1, opts.max_seq_len
+            trg_seqlen - 1, MAX_SEQ_LEN
         ).unsqueeze(-1)
         aux_pts_loss = torch.pow((aux_pts_predict - trg_pts_aux), 2) * seqlen_mask_aux
 
@@ -734,10 +732,10 @@ class Transformer(nn.Module):
         loss_aux = torch.mean(torch.sum(loss_aux / trg_seqlen.unsqueeze(-1), -1))
 
         loss = (
-            opts.loss_w_cmd * loss_cmd
-            + opts.loss_w_args * loss_args
-            + opts.loss_w_aux * loss_aux
-            + opts.loss_w_smt * smooth_constrained
+            self.opts.loss_w_cmd * loss_cmd
+            + self.opts.loss_w_args * loss_args
+            + self.opts.loss_w_aux * loss_aux
+            + self.opts.loss_w_smt * smooth_constrained
         )
 
         svg_losses = {}

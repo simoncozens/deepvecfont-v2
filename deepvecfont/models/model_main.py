@@ -44,14 +44,9 @@ class ModelMain(nn.Module):
             norm_layer=nn.LayerNorm,
         )
         self.vggptlossfunc = VGGPerceptualLoss()
-        self.modality_fusion = ModalityFusion(
-            img_size=opts.img_size,
-            ref_nshot=opts.ref_nshot,
-            bottleneck_bits=opts.bottleneck_bits,
-            ngf=opts.ngf,
-            mode=opts.mode,
-        )
+        self.modality_fusion = ModalityFusion(opts)
         self.transformer_main = Transformer(
+            opts,
             input_channels=1,
             input_axis=2,  # number of axis for input data (2 for images, 3 for video)
             num_freq_bands=6,  # number of freq bands, with original value (2 * K + 1)
@@ -72,7 +67,7 @@ class ModelMain(nn.Module):
             self_per_cross_attn=2,  # number of self attention blocks per cross attention
         )
 
-        self.transformer_seqdec = Transformer_decoder()
+        self.transformer_seqdec = Transformer_decoder(opts)
 
     def forward(self, data, mode="train"):
 
