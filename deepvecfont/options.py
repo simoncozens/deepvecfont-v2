@@ -75,7 +75,7 @@ def get_parser_main_model():
     group = parser.add_argument_group("experiment related")
     group.add_argument("--random_index", type=str, default="00")
     group.add_argument("--name_ckpt", type=str, default="600_192921")
-    group.add_argument("--restart", type=bool, help="restart training", default=False)
+    group.add_argument("--restart", action="store_true", help="restart training", default=False)
     group.add_argument("--n_epochs", type=int, default=800, help="number of epochs")
     group.add_argument(
         "--n_samples",
@@ -91,7 +91,7 @@ def get_parser_main_model():
     group.add_argument(
         "--mode", type=str, default="train", choices=["train", "val", "test"]
     )
-    group.add_argument("--multi_gpu", type=bool, default=False)
+    group.add_argument("--multi_gpu", action="store_true", default=False)
     group.add_argument("--name_exp", type=str, default="dvf")
     group.add_argument("--data_root", type=Path, default="./data/vecfont_dataset/")
     group.add_argument(
@@ -114,7 +114,7 @@ def get_parser_main_model():
     group.add_argument("--weight_decay", type=float, default=0.0, help="weight decay")
     group.add_argument(
         "--tboard",
-        type=bool,
+        action="store_true",
         default=True,
         help="whether use tensorboard to visulize loss",
     )
