@@ -80,10 +80,9 @@ class ModelMain(nn.Module):
         target_sequence_shifted = util_funcs.shift_right(target_sequence)
         target_auxiliary_points = data["target_auxiliary_points"]
 
-        # image encoding
+        # Encode the image and the SVG in their separate modalities
         img_feat = self.img_encoder(reference_image)  # shape = [batch_size, ngf * 2**6]
 
-        # seq encoding
         reference_image_ = reference_image.view(
             reference_image.size(0) * reference_image.size(1),
             reference_image.size(2),
@@ -141,14 +140,14 @@ class ModelMain(nn.Module):
                 trg_char=target_class,
             )
 
-            total_loss = self.transformer_main.loss(
+            svg_total_loss = self.transformer_main.loss(
                 command_logits,
                 args_logits,
                 target_sequence,
                 target_sequencelen,
                 target_auxiliary_points,
             )
-            total_loss_parallel = self.transformer_main.loss(
+            svg_total_loss_parallel = self.transformer_main.loss(
                 command_logits_2,
                 args_logits_2,
                 target_sequence,
@@ -156,20 +155,17 @@ class ModelMain(nn.Module):
                 target_auxiliary_points,
             )
             vggpt_loss = self.vggptlossfunc(img_decoder_out["gen_imgs"], target_image)
-            # loss and output
-            loss_svg_items = ["total", "cmd", "args", "smt", "aux"]
-            # for image
-            loss_dict["img"] = {}
-            loss_dict["img"]["l1"] = img_decoder_out["img_l1loss"]
-            loss_dict["img"]["vggpt"] = vggpt_loss["pt_c_loss"]
-            # for latent
-            loss_dict["kl"] = kl_loss
-            # for svg
-            loss_dict["svg"] = {}
-            loss_dict["svg_para"] = {}
-            for item in loss_svg_items:
-                loss_dict["svg"][item] = total_loss[f"loss_{item}"]
-                loss_dict["svg_para"][item] = total_loss_parallel[f"loss_{item}"]
+            # Combine all the losses
+            loss_dict = {
+                "img_l1": img_decoder_out["img_l1loss"],
+                "img_vgg_perceptual": vggpt_loss["pt_c_loss"],
+                "kl": kl_loss,
+            }
+            for item in ["total", "cmd", "args", "smt", "aux"]:
+                loss_dict[f"svg_{item}"] = svg_total_loss[f"loss_{item}"]
+                loss_dict[f"svg_parallel_{item}"] = svg_total_loss_parallel[
+                    f"loss_{item}"
+                ]
 
         else:  # testing (inference)
 

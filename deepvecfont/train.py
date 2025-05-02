@@ -1,6 +1,6 @@
+from collections import defaultdict
 import os
 import random
-import shutil
 
 import numpy as np
 import torch
@@ -18,6 +18,7 @@ from deepvecfont.models.util_funcs import device
 class Trainer:
     def __init__(self, opts):
         self.opts = opts
+        self.init_epoch = 0
         self.dir_exp = os.path.join("./experiments", opts.name_exp)
         self.dir_sample = os.path.join(self.dir_exp, "samples")
         self.dir_ckpt = os.path.join(self.dir_exp, "checkpoints")
@@ -62,7 +63,7 @@ class Trainer:
             self.load_checkpoint()
 
         self.setup_seed(1111)
-        for epoch in range(self.opts.init_epoch, self.opts.n_epochs):
+        for epoch in range(self.init_epoch, self.opts.n_epochs):
             for idx, data in enumerate(self.train_loader):
                 for key in data:
                     data[key] = data[key].to(device)
@@ -93,11 +94,11 @@ class Trainer:
         ret_dict, loss_dict = self.model_main(data)
 
         loss = (
-            self.opts.loss_w_l1 * loss_dict["img"]["l1"]
-            + self.opts.loss_w_pt_c * loss_dict["img"]["vggpt"]
+            self.opts.loss_w_l1 * loss_dict["img_l1"]
+            + self.opts.loss_w_pt_c * loss_dict["img_vgg_perceptual"]
             + self.opts.kl_beta * loss_dict["kl"]
-            + loss_dict["svg"]["total"]
-            + loss_dict["svg_para"]["total"]
+            + loss_dict["svg_total"]
+            + loss_dict["svg_parallel_total"]
         )
 
         # perform optimization
@@ -116,34 +117,24 @@ class Trainer:
     def val_step(self, epoch, idx, batches_done):
         with torch.no_grad():
             self.model_main.eval()
-            loss_val = {
-                "img": {"l1": 0.0, "vggpt": 0.0},
-                "svg": {"total": 0.0, "cmd": 0.0, "args": 0.0, "aux": 0.0},
-                "svg_para": {"total": 0.0, "cmd": 0.0, "args": 0.0, "aux": 0.0},
-            }
+            val_loss = defaultdict(float)
 
             for val_data in self.val_loader:
                 for key in val_data:
                     val_data[key] = val_data[key].to(device)
                 _, loss_dict_val = self.model_main(val_data, mode="val")
-                for loss_cat in ["img", "svg"]:
-                    for key, _ in loss_val[loss_cat].items():
-                        loss_val[loss_cat][key] += loss_dict_val[loss_cat][key]
+                for item, loss in loss_dict_val.items():
+                    val_loss[item] += loss
 
-            for loss_cat in ["img", "svg"]:
-                for key, _ in loss_val[loss_cat].items():
-                    loss_val[loss_cat][key] /= len(self.val_loader)
+            # Average losses over the validation set
+            for key in val_loss.keys():
+                val_loss[key] /= len(self.val_loader)
 
             if self.opts.tboard:
-                for loss_cat in ["img", "svg"]:
-                    for key, _ in loss_val[loss_cat].items():
-                        self.writer.add_scalar(
-                            f"VAL/loss_{loss_cat}_{key}",
-                            loss_val[loss_cat][key],
-                            batches_done,
-                        )
+                for key, loss in val_loss.items():
+                    self.writer.add_scalar(f"VAL/{key}", loss, batches_done)
 
-            self.log_message_val(epoch, idx, loss_val)
+            self.log_message_val(epoch, idx, val_loss)
 
     def save_checkpoint(self, epoch, batches_done):
         torch.save(
@@ -166,7 +157,7 @@ class Trainer:
         )
         self.model_main.load_state_dict(checkpoint["model"])
         self.optimizer.load_state_dict(checkpoint["opt"])
-        self.opts.init_epoch = checkpoint["n_epoch"]
+        self.init_epoch = checkpoint["n_epoch"]
         print(f"Checkpoint loaded from {self.opts.name_ckpt}.ckpt")
 
     def do_sample(self, epoch, ret_dict, batches_done):
@@ -181,11 +172,11 @@ class Trainer:
     def log_message_val(self, epoch, idx, loss_val):
         val_msg = (
             f"Epoch: {epoch}/{self.opts.n_epochs}, Batch: {idx}/{len(self.train_loader)}, "
-            f"Val loss img l1: {loss_val['img']['l1']: .6f}, "
-            f"Val loss img pt: {loss_val['img']['vggpt']: .6f}, "
-            f"Val loss total: {loss_val['svg']['total']: .6f}, "
-            f"Val loss cmd: {loss_val['svg']['cmd']: .6f}, "
-            f"Val loss args: {loss_val['svg']['args']: .6f}, "
+            f"Val loss img l1: {loss_val['img_l1']: .6f}, "
+            f"Val loss img pt: {loss_val['img_vgg_perceptual']: .6f}, "
+            f"Val loss total: {loss_val['svg_total']: .6f}, "
+            f"Val loss cmd: {loss_val['svg_cmd']: .6f}, "
+            f"Val loss args: {loss_val['svg_args']: .6f}, "
         )
 
         self.logfile_val.write(val_msg + "\n")
@@ -193,49 +184,30 @@ class Trainer:
 
     def write_tboard(self, ret_dict, loss_dict, loss, batches_done):
         self.writer.add_scalar("Loss/loss", loss.item(), batches_done)
-        loss_img_items = ["l1", "vggpt"]
-        loss_svg_items = ["total", "cmd", "args", "aux", "smt"]
-        for item in loss_img_items:
+        for item, loss in loss_dict.items():
             self.writer.add_scalar(
-                f"Loss/img_{item}",
-                loss_dict["img"][item].item(),
+                f"Loss/{item}",
+                loss.item(),
                 batches_done,
             )
-        for item in loss_svg_items:
-            self.writer.add_scalar(
-                f"Loss/svg_{item}",
-                loss_dict["svg"][item].item(),
-                batches_done,
-            )
-        for item in loss_svg_items:
-            self.writer.add_scalar(
-                f"Loss/svg_para_{item}",
-                loss_dict["svg_para"][item].item(),
-                batches_done,
-            )
-        self.writer.add_scalar(
-            "Loss/img_kl_loss",
-            self.opts.kl_beta * loss_dict["kl"].item(),
-            batches_done,
+        self.writer.add_image(
+            "Images/target_image", ret_dict["target_image"][0], batches_done
         )
         self.writer.add_image(
-            "Images/trg_img", ret_dict["target_image"][0], batches_done
-        )
-        self.writer.add_image(
-            "Images/img_output", ret_dict["generated_image"][0], batches_done
+            "Images/generated_output", ret_dict["generated_image"][0], batches_done
         )
 
     def log_message(self, epoch, idx, loss_dict, loss, batches_done):
         message = (
             f"Epoch: {epoch}/{self.opts.n_epochs}, Batch: {idx}/{len(self.train_loader)}, "
             f"Loss: {loss.item():.6f}, "
-            f"img_l1_loss: {self.opts.loss_w_l1 * loss_dict['img']['l1'].item():.6f}, "
-            f"img_pt_c_loss: {self.opts.loss_w_pt_c * loss_dict['img']['vggpt']:.6f}, "
-            f"svg_total_loss: {loss_dict['svg']['total'].item():.6f}, "
-            f"svg_cmd_loss: {self.opts.loss_w_cmd * loss_dict['svg']['cmd'].item():.6f}, "
-            f"svg_args_loss: {self.opts.loss_w_args * loss_dict['svg']['args'].item():.6f}, "
-            f"svg_smooth_loss: {self.opts.loss_w_smt * loss_dict['svg']['smt'].item():.6f}, "
-            f"svg_aux_loss: {self.opts.loss_w_aux * loss_dict['svg']['aux'].item():.6f}, "
+            f"img_l1_loss: {self.opts.loss_w_l1 * loss_dict['img_l1'].item():.6f}, "
+            f"img_perceptual_loss: {self.opts.loss_w_pt_c * loss_dict['img_vgg_perceptual']:.6f}, "
+            f"svg_total_loss: {loss_dict['svg_total'].item():.6f}, "
+            f"svg_cmd_loss: {self.opts.loss_w_cmd * loss_dict['svg_cmd'].item():.6f}, "
+            f"svg_args_loss: {self.opts.loss_w_args * loss_dict['svg_args'].item():.6f}, "
+            f"svg_smooth_loss: {self.opts.loss_w_smt * loss_dict['svg_smt'].item():.6f}, "
+            f"svg_aux_loss: {self.opts.loss_w_aux * loss_dict['svg_aux'].item():.6f}, "
             f"lr: {self.optimizer.param_groups[0]['lr']:.6f}, "
             f"Step: {batches_done}"
         )
