@@ -156,6 +156,7 @@ class Trainer:
         torch.backends.cudnn.deterministic = True
 
     def val_step(self, pb, epoch, idx, batches_done):
+        validation = pb.add_task("Validate", total=len(self.val_loader))
         with torch.no_grad():
             self.model_main.eval()
             val_loss = defaultdict(float)
@@ -166,6 +167,8 @@ class Trainer:
                 _, loss_dict_val = self.model_main(val_data, mode="val")
                 for item, loss in loss_dict_val.items():
                     val_loss[item] += loss
+                pb.update(task_id=validation, advance=1)
+        pb.remove_task(task_id=validation)
 
         # Average losses over the validation set
         for key in val_loss.keys():
