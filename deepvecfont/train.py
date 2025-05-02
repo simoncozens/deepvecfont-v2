@@ -96,9 +96,9 @@ class Trainer:
         self.setup_seed(1111)
         with CustomProgress() as pb:
             epoch_pb = pb.add_task("Epoch", total=self.opts.n_epochs - self.init_epoch)
-            batch_pb = pb.add_task("Batch", total=len(self.train_loader))
 
             for epoch in range(self.init_epoch, self.opts.n_epochs):
+                batch_pb = pb.add_task("Batch", total=len(self.train_loader))
                 for idx, data in enumerate(self.train_loader):
                     for key in data:
                         data[key] = data[key].to(device)
@@ -122,6 +122,7 @@ class Trainer:
                     ):
                         self.val_step(pb, epoch, idx, batches_done)
                     pb.update(task_id=batch_pb, completed=idx + 1)
+                pb.remove_task(task_id=batch_pb)
                 pb.update(task_id=epoch_pb, completed=epoch + 1)
 
                 self.scheduler.step()
