@@ -7,12 +7,43 @@ import torch
 from tensorboardX import SummaryWriter
 from torch.optim import Adam
 from torchvision.utils import save_image
+from rich.table import Table
+from rich.console import Group
+from rich.progress import (
+    Progress,
+    BarColumn,
+    MofNCompleteColumn,
+    TextColumn,
+    TimeRemainingColumn,
+)
 
 from deepvecfont.dataloader import get_loader
 from deepvecfont.models.model_main import ModelMain
 from deepvecfont.options import get_parser_main_model
 
 from deepvecfont.models.util_funcs import device
+
+
+class CustomProgress(Progress):
+    def __init__(self, *args, **kwargs) -> None:
+        self.losses = {}
+        self.update_table({})
+        super().__init__(
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            TimeRemainingColumn(),
+        )
+
+    def update_table(self, losses):
+        table = Table(show_header=False)
+        for loss, value in losses.items():
+            table.add_row(loss, str(value))
+        self.table = table
+
+    def get_renderable(self):
+        renderable = Group(self.table, *self.get_renderables())
+        return renderable
 
 
 class Trainer:
@@ -63,30 +94,39 @@ class Trainer:
             self.load_checkpoint()
 
         self.setup_seed(1111)
-        for epoch in range(self.init_epoch, self.opts.n_epochs):
-            for idx, data in enumerate(self.train_loader):
-                for key in data:
-                    data[key] = data[key].to(device)
-                ret_dict, loss_dict, loss = self.train_step(data)
+        with CustomProgress() as pb:
+            epoch_pb = pb.add_task("Epoch", total=self.opts.n_epochs - self.init_epoch)
+            batch_pb = pb.add_task("Batch", total=len(self.train_loader))
 
-                batches_done = epoch * len(self.train_loader) + idx + 1
-                if batches_done % self.opts.freq_log == 0:
-                    self.log_message(epoch, idx, loss_dict, loss, batches_done)
-                    if self.opts.tboard:
-                        self.write_tboard(ret_dict, loss_dict, loss, batches_done)
+            for epoch in range(self.init_epoch, self.opts.n_epochs):
+                for idx, data in enumerate(self.train_loader):
+                    for key in data:
+                        data[key] = data[key].to(device)
+                    ret_dict, loss_dict, loss = self.train_step(data)
 
-                if (
-                    self.opts.freq_sample > 0
-                    and batches_done % self.opts.freq_sample == 0
-                ):
-                    self.do_sample(epoch, ret_dict, batches_done)
+                    batches_done = epoch * len(self.train_loader) + idx + 1
+                    if batches_done % self.opts.freq_log == 0:
+                        self.log_message(pb, epoch, idx, loss_dict, loss, batches_done)
+                        if self.opts.tboard:
+                            self.write_tboard(ret_dict, loss_dict, loss, batches_done)
 
-                if self.opts.freq_val > 0 and batches_done % self.opts.freq_val == 0:
-                    self.val_step(epoch, idx, batches_done)
+                    if (
+                        self.opts.freq_sample > 0
+                        and batches_done % self.opts.freq_sample == 0
+                    ):
+                        self.do_sample(epoch, ret_dict, batches_done)
 
-            self.scheduler.step()
-            if epoch % self.opts.freq_ckpt == 0:
-                self.save_checkpoint(epoch, batches_done)
+                    if (
+                        self.opts.freq_val > 0
+                        and batches_done % self.opts.freq_val == 0
+                    ):
+                        self.val_step(pb, epoch, idx, batches_done)
+                    pb.update(task_id=batch_pb, completed=idx + 1)
+                pb.update(task_id=epoch_pb, completed=epoch + 1)
+
+                self.scheduler.step()
+                if epoch % self.opts.freq_ckpt == 0:
+                    self.save_checkpoint(epoch, batches_done)
         self.logfile_train.close()
         self.logfile_val.close()
 
@@ -114,7 +154,7 @@ class Trainer:
         random.seed(seed)
         torch.backends.cudnn.deterministic = True
 
-    def val_step(self, epoch, idx, batches_done):
+    def val_step(self, pb, epoch, idx, batches_done):
         with torch.no_grad():
             self.model_main.eval()
             val_loss = defaultdict(float)
@@ -134,7 +174,7 @@ class Trainer:
             for key, loss in val_loss.items():
                 self.writer.add_scalar(f"VAL/{key}", loss, batches_done)
 
-        self.log_message_val(epoch, idx, val_loss)
+        self.log_message_val(pb, epoch, idx, val_loss)
 
     def save_checkpoint(self, epoch, batches_done):
         torch.save(
@@ -169,7 +209,7 @@ class Trainer:
         )
         save_image(img_sample, save_file, nrow=8, normalize=True)
 
-    def log_message_val(self, epoch, idx, loss_val):
+    def log_message_val(self, pb, epoch, idx, loss_val):
         val_msg = (
             f"Epoch: {epoch}/{self.opts.n_epochs}, Batch: {idx}/{len(self.train_loader)}, "
             f"Val loss img l1: {loss_val['img_l1']: .6f}, "
@@ -180,7 +220,7 @@ class Trainer:
         )
 
         self.logfile_val.write(val_msg + "\n")
-        print(val_msg)
+        pb.console.print(val_msg)
 
     def write_tboard(self, ret_dict, loss_dict, loss, batches_done):
         self.writer.add_scalar("Loss/loss", loss.item(), batches_done)
@@ -197,22 +237,24 @@ class Trainer:
             "Images/generated_output", ret_dict["generated_image"][0], batches_done
         )
 
-    def log_message(self, epoch, idx, loss_dict, loss, batches_done):
+    def log_message(self, pb, epoch, idx, loss_dict, loss, batches_done):
+        message = {
+            "Loss": f"{loss.item():.6f}",
+            "img_l1_loss": f"{self.opts.loss_w_l1 * loss_dict['img_l1'].item():.6f}",
+            "img_perceptual_loss": f"{self.opts.loss_w_pt_c * loss_dict['img_vgg_perceptual']:.6f}",
+            "svg_total_loss": f"{loss_dict['svg_total'].item():.6f}",
+            "svg_cmd_loss": f"{self.opts.loss_w_cmd * loss_dict['svg_cmd'].item():.6f}",
+            "svg_args_loss": f"{self.opts.loss_w_args * loss_dict['svg_args'].item():.6f}",
+            "svg_smooth_loss": f"{self.opts.loss_w_smt * loss_dict['svg_smt'].item():.6f}",
+            "svg_aux_loss": f"{self.opts.loss_w_aux * loss_dict['svg_aux'].item():.6f}",
+            "lr": f"{self.optimizer.param_groups[0]['lr']:.6f}",
+        }
+        pb.update_table(message)
         message = (
             f"Epoch: {epoch}/{self.opts.n_epochs}, Batch: {idx}/{len(self.train_loader)}, "
-            f"Loss: {loss.item():.6f}, "
-            f"img_l1_loss: {self.opts.loss_w_l1 * loss_dict['img_l1'].item():.6f}, "
-            f"img_perceptual_loss: {self.opts.loss_w_pt_c * loss_dict['img_vgg_perceptual']:.6f}, "
-            f"svg_total_loss: {loss_dict['svg_total'].item():.6f}, "
-            f"svg_cmd_loss: {self.opts.loss_w_cmd * loss_dict['svg_cmd'].item():.6f}, "
-            f"svg_args_loss: {self.opts.loss_w_args * loss_dict['svg_args'].item():.6f}, "
-            f"svg_smooth_loss: {self.opts.loss_w_smt * loss_dict['svg_smt'].item():.6f}, "
-            f"svg_aux_loss: {self.opts.loss_w_aux * loss_dict['svg_aux'].item():.6f}, "
-            f"lr: {self.optimizer.param_groups[0]['lr']:.6f}, "
-            f"Step: {batches_done}"
+            + ", ".join([f"{k}: {v}" for k, v in message.items()])
         )
         self.logfile_train.write(message + "\n")
-        print(message)
 
 
 def train(opts):
