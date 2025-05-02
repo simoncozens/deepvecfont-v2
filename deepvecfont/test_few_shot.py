@@ -10,7 +10,7 @@ from deepvecfont.dataloader import get_loader
 from deepvecfont.models.model_main import ModelMain
 from deepvecfont.models.transformers import denumericalize
 from deepvecfont.models.util_funcs import cal_iou, svg2img
-from deepvecfont.options import get_parser_main_model
+from deepvecfont.options import get_charset, get_parser_main_model
 
 
 def test_main_model(opts):
@@ -26,6 +26,8 @@ def test_main_model(opts):
     model_main.load_state_dict(torch.load(path_ckpt)["model"])
     model_main.cuda()
     model_main.eval()
+
+    glyphset_size = len(get_charset(opts))
 
     with torch.no_grad():
 
@@ -43,8 +45,8 @@ def test_main_model(opts):
                 os.mkdir(os.path.join(dir_save, "svgs_merge"))
             svg_merge_dir = os.path.join(dir_save, "svgs_merge")
 
-            iou_max = np.zeros(opts.char_num)
-            idx_best_sample = np.zeros(opts.char_num)
+            iou_max = np.zeros(glyphset_size)
+            idx_best_sample = np.zeros(glyphset_size)
 
             # syn_svg_merge_f = open(os.path.join(svg_merge_dir, f"{opts.name_ckpt}_syn_merge_{test_idx}_rand_{sample_idx}.html"), 'w')
             syn_svg_merge_f = open(
@@ -55,29 +57,31 @@ def test_main_model(opts):
             )
 
             for sample_idx in range(opts.n_samples):
-                ret_dict_test, loss_dict_test = model_main(test_data, mode="test")
+                ret_dict_test = model_main(test_data, mode="test")[0]
 
-                svg_sampled = ret_dict_test["svg"]["sampled_1"]
-                sampled_svg_2 = ret_dict_test["svg"]["sampled_2"]
+                svg_sampled = ret_dict_test["sampled_svg_1"]
+                sampled_svg_2 = ret_dict_test["sampled_svg_2"]
+                trg_seq_gt = ret_dict_test["target_svg"]
 
-                img_trg = ret_dict_test["img"]["trg"]
-                img_output = ret_dict_test["img"]["out"]
-                trg_seq_gt = ret_dict_test["svg"]["trg"]
+                target_image = ret_dict_test["target_image"]
+                generated_image = ret_dict_test["generated_image"]
 
-                img_sample_merge = torch.cat((img_trg.data, img_output.data), -2)
+                img_sample_merge = torch.cat(
+                    (target_image.data, generated_image.data), -2
+                )
                 save_file_merge = os.path.join(
                     dir_save, "imgs", f"merge_{opts.img_size}.png"
                 )
                 save_image(img_sample_merge, save_file_merge, nrow=8, normalize=True)
 
-                for char_idx in range(opts.char_num):
-                    img_gt = (1.0 - img_trg[char_idx, ...]).data
+                for char_idx in range(glyphset_size):
+                    img_gt = (1.0 - target_image[char_idx, ...]).data
                     save_file_gt = os.path.join(
                         dir_save, "imgs", f"{char_idx:02d}_gt.png"
                     )
                     save_image(img_gt, save_file_gt, normalize=True)
 
-                    img_sample = (1.0 - img_output[char_idx, ...]).data
+                    img_sample = (1.0 - generated_image[char_idx, ...]).data
                     save_file = os.path.join(
                         dir_save, "imgs", f"{char_idx:02d}_{opts.img_size}.png"
                     )
@@ -134,7 +138,7 @@ def test_main_model(opts):
                         iou_max[i] = iou_tmp
                         idx_best_sample[i] = sample_idx
 
-            for i in range(opts.char_num):
+            for i in range(glyphset_size):
                 # print(idx_best_sample[i])
                 syn_svg_outfile_best = os.path.join(
                     os.path.join(dir_save, "svgs_single"),

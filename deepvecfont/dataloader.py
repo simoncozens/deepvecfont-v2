@@ -6,6 +6,7 @@ import torch
 import torch.utils.data as data
 import torchvision.transforms as T
 
+from deepvecfont.data_utils.svg_utils import MAX_SEQ_LEN
 from deepvecfont.options import get_charset
 
 
@@ -14,17 +15,12 @@ class SVGDataset(data.Dataset):
         super().__init__()
 
         root_path = opts.data_root
-        img_size = opts.img_size
         lang = opts.language
 
-        char_num = len(get_charset(opts))
-        max_seq_len = opts.max_seq_len
-        dim_seq = opts.dim_seq
         self.mode = mode
-        self.img_size = img_size
-        self.char_num = char_num
-        self.max_seq_len = max_seq_len
-        self.dim_seq = dim_seq
+        self.img_size = opts.img_size
+        self.glyphset_size = len(get_charset(opts))
+        self.dim_seq = opts.dim_seq
 
         SetRange = T.Lambda(lambda X: 1.0 - X)  # convert [0, 1] -> [0, 1]
         self.trans = T.Compose([SetRange])
@@ -48,7 +44,7 @@ class SVGDataset(data.Dataset):
         )
         item["sequence"] = torch.FloatTensor(
             np.load(os.path.join(font_path, "sequence_relaxed.npy"))
-        ).view(self.char_num, self.max_seq_len, self.dim_seq)
+        ).view(self.glyphset_size, MAX_SEQ_LEN, self.dim_seq)
         item["pts_aux"] = torch.FloatTensor(
             np.load(os.path.join(font_path, "pts_aux.npy"))
         )
@@ -57,7 +53,7 @@ class SVGDataset(data.Dataset):
                 np.load(
                     os.path.join(font_path, "rendered_" + str(self.img_size) + ".npy")
                 )
-            ).view(self.char_num, self.img_size, self.img_size)
+            ).view(self.glyphset_size, self.img_size, self.img_size)
             / 255.0
         )
         item["rendered"] = self.trans(item["rendered"])
@@ -84,9 +80,9 @@ def get_loader(opts, batch_size, mode="train"):
 #     max_seq_len = 51
 #     dim_seq = 10
 #     batch_size = 1
-#     char_num = 52
+#     glyphset_size = 52
 
-#     loader = get_loader(root_path, char_num, max_seq_len, dim_seq, batch_size, "train")
+#     loader = get_loader(root_path, glyphset_size, max_seq_len, dim_seq, batch_size, "train")
 #     fout = open("train_id_record_old.txt", "w")
 #     for idx, batch in enumerate(loader):
 #         binary_fp = batch["font_id"].numpy()[0][0]

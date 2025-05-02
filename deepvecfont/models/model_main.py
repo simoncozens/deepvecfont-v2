@@ -26,7 +26,7 @@ class ModelMain(nn.Module):
     def __init__(self, opts, mode="train"):
         super().__init__()
         self.opts = opts
-        self.char_num = len(get_charset(opts))
+        self.glyphset_size = len(get_charset(opts))
         self.img_encoder = ImageEncoder(
             img_size=opts.img_size,
             input_nc=opts.ref_nshot,
@@ -35,7 +35,7 @@ class ModelMain(nn.Module):
         )
         self.img_decoder = ImageDecoder(
             img_size=opts.img_size,
-            input_nc=opts.bottleneck_bits + self.char_num,
+            input_nc=opts.bottleneck_bits + self.glyphset_size,
             output_nc=1,
             ngf=opts.ngf,
             norm_layer=nn.LayerNorm,
@@ -74,12 +74,12 @@ class ModelMain(nn.Module):
             _ref_seq,
             ref_seq_cat,
             ref_pad_mask,
-            trg_seq,
-            trg_seq_gt,
-            trg_seq_shifted,
+            target_sequence,
+            target_sequence_gt,
+            target_sequence_shifted,
             trg_pts_aux,
         ) = seqs
-        trg_char_onehot, trg_cls, trg_seqlen = scalars
+        trg_char_onehot, target_class, target_sequencelen = scalars
 
         # image encoding
         img_feat = self.img_encoder(ref_img)  # shape = [batch_size, ngf * 2**6]
@@ -107,13 +107,13 @@ class ModelMain(nn.Module):
         # image decoding
         img_decoder_out = self.img_decoder(z, trg_char_onehot, trg_img)
 
-        ret_dict = {}
         loss_dict = {}
 
-        ret_dict["img"] = {}
-        ret_dict["img"]["out"] = img_decoder_out["gen_imgs"]
-        ret_dict["img"]["ref"] = ref_img
-        ret_dict["img"]["trg"] = trg_img
+        ret_dict = {
+            "generated_image": img_decoder_out["gen_imgs"],
+            "reference_image": ref_img,
+            "target_image": trg_img,
+        }
 
         if mode in {"train", "val"}:
             # seq decoding (training or val mode)
@@ -125,23 +125,31 @@ class ModelMain(nn.Module):
                 .float()
             )
             command_logits, args_logits, _attn = self.transformer_seqdec(
-                x=trg_seq_shifted,
+                x=target_sequence_shifted,
                 memory=latent_feat_seq,
-                trg_char=trg_cls,
+                trg_char=target_class,
                 tgt_mask=tgt_mask,
             )
             command_logits_2, args_logits_2 = self.transformer_seqdec.parallel_decoder(
                 command_logits,
                 args_logits,
                 memory=latent_feat_seq.detach(),
-                trg_char=trg_cls,
+                trg_char=target_class,
             )
 
             total_loss = self.transformer_main.loss(
-                command_logits, args_logits, trg_seq, trg_seqlen, trg_pts_aux
+                command_logits,
+                args_logits,
+                target_sequence,
+                target_sequencelen,
+                trg_pts_aux,
             )
             total_loss_parallel = self.transformer_main.loss(
-                command_logits_2, args_logits_2, trg_seq, trg_seqlen, trg_pts_aux
+                command_logits_2,
+                args_logits_2,
+                target_sequence,
+                target_sequencelen,
+                trg_pts_aux,
             )
             vggpt_loss = self.vggptlossfunc(img_decoder_out["gen_imgs"], trg_img)
             # loss and output
@@ -161,10 +169,10 @@ class ModelMain(nn.Module):
 
         else:  # testing (inference)
 
-            trg_len = trg_seq_shifted.size(0)
-            sampled_svg = torch.zeros(1, trg_seq.size(1), self.opts.dim_seq_short).to(
-                device
-            )
+            trg_len = target_sequence_shifted.size(0)
+            sampled_svg = torch.zeros(
+                1, target_sequence.size(1), self.opts.dim_seq_short
+            ).to(device)
 
             for _ in range(0, trg_len):
                 tgt_mask = (
@@ -179,7 +187,7 @@ class ModelMain(nn.Module):
                 command_logits, args_logits, _attn = self.transformer_seqdec(
                     x=sampled_svg,
                     memory=latent_feat_seq,
-                    trg_char=trg_cls,
+                    trg_char=target_class,
                     tgt_mask=tgt_mask,
                 )
                 prob_comand = F.softmax(command_logits[:, -1, :], -1)
@@ -200,7 +208,7 @@ class ModelMain(nn.Module):
                 cmd_logits=cmd2,
                 args_logits=arg2,
                 memory=latent_feat_seq,
-                trg_char=trg_cls,
+                trg_char=target_class,
             )
             prob_comand = F.softmax(command_logits_2, -1)
             prob_args = F.softmax(args_logits_2, -1)
@@ -229,10 +237,9 @@ class ModelMain(nn.Module):
                 [commands2.cpu().detach(), args2[:, :, 2:].cpu().detach()], dim=-1
             )
 
-            ret_dict["svg"] = {}
-            ret_dict["svg"]["sampled_1"] = sampled_svg_1
-            ret_dict["svg"]["sampled_2"] = sampled_svg_2
-            ret_dict["svg"]["trg"] = trg_seq_gt
+            ret_dict["sampled_svg_1"] = sampled_svg_1
+            ret_dict["sampled_svg_2"] = sampled_svg_2
+            ret_dict["target_svg"] = target_sequence_gt
 
         return ret_dict, loss_dict
 
@@ -240,10 +247,10 @@ class ModelMain(nn.Module):
 
         input_image = data[
             "rendered"
-        ]  # [bs, self.char_num, opts.img_size, opts.img_size]
-        input_sequence = data["sequence"]  #  [bs, self.char_num, opts.max_seq_len]
-        input_seqlen = data["seq_len"]
-        input_seqlen = input_seqlen + 1
+        ]  # [bs, self.glyphset_size, opts.img_size, opts.img_size]
+        input_sequence = data["sequence"]  #  [bs, self.glyphset_size, opts.max_seq_len]
+        input_sequence_length = data["seq_len"]
+        input_sequence_length = input_sequence_length + 1
         input_pts_aux = data["pts_aux"]
         arg_quant = numericalize(input_sequence[:, :, :, 4:])
         cmd_cls = torch.argmax(input_sequence[:, :, :, :4], dim=-1).unsqueeze(-1)
@@ -251,11 +258,11 @@ class ModelMain(nn.Module):
 
         # choose reference classes and target classes
         if mode == "train":
-            ref_cls = torch.randint(
-                0, self.char_num, (input_image.size(0), self.opts.ref_nshot)
+            reference_class = torch.randint(
+                0, self.glyphset_size, (input_image.size(0), self.opts.ref_nshot)
             ).to(device)
         elif mode == "val":
-            ref_cls = (
+            reference_class = (
                 torch.arange(0, self.opts.ref_nshot, 1)
                 .to(device)
                 .unsqueeze(0)
@@ -265,51 +272,60 @@ class ModelMain(nn.Module):
             ref_ids = self.opts.ref_char_ids.split(",")
             ref_ids = list(map(int, ref_ids))
             assert len(ref_ids) == self.opts.ref_nshot
-            ref_cls = (
-                torch.tensor(ref_ids).to(device).unsqueeze(0).expand(self.char_num, -1)
+            reference_class = (
+                torch.tensor(ref_ids)
+                .to(device)
+                .unsqueeze(0)
+                .expand(self.glyphset_size, -1)
             )
 
         if mode in {"train", "val"}:
-            trg_cls = torch.randint(0, self.char_num, (input_image.size(0), 1)).to(
-                device
-            )
+            target_class = torch.randint(
+                0, self.glyphset_size, (input_image.size(0), 1)
+            ).to(device)
         else:
-            trg_cls = torch.arange(0, self.char_num).to(device)
-            trg_cls = trg_cls.view(self.char_num, 1)
-            input_image = input_image.expand(self.char_num, -1, -1, -1)
-            input_sequence = input_sequence.expand(self.char_num, -1, -1, -1)
-            input_pts_aux = input_pts_aux.expand(self.char_num, -1, -1, -1)
-            input_seqlen = input_seqlen.expand(self.char_num, -1, -1)
+            target_class = torch.arange(0, self.glyphset_size).to(device)
+            target_class = target_class.view(self.glyphset_size, 1)
+            input_image = input_image.expand(self.glyphset_size, -1, -1, -1)
+            input_sequence = input_sequence.expand(self.glyphset_size, -1, -1, -1)
+            input_pts_aux = input_pts_aux.expand(self.glyphset_size, -1, -1, -1)
+            input_sequence_length = input_sequence_length.expand(
+                self.glyphset_size, -1, -1
+            )
 
-        ref_img = util_funcs.select_imgs(input_image, ref_cls, self.opts)
+        ref_img = util_funcs.select_imgs(input_image, reference_class, self.opts)
         # select a target glyph image
-        trg_img = util_funcs.select_imgs(input_image, trg_cls, self.opts)
+        trg_img = util_funcs.select_imgs(input_image, target_class, self.opts)
         # randomly select ref vector glyphs
         ref_seq = util_funcs.select_seqs(
-            input_sequence, ref_cls, self.opts.dim_seq_short
+            input_sequence, reference_class, self.opts.dim_seq_short
         )  # [opts.batch_size, opts.ref_nshot, opts.max_seq_len, opts.dim_seq_nmr]
         # randomly select a target vector glyph
-        trg_seq = util_funcs.select_seqs(
-            input_sequence, trg_cls, self.opts.dim_seq_short
+        target_sequence = util_funcs.select_seqs(
+            input_sequence, target_class, self.opts.dim_seq_short
         )
-        trg_seq = trg_seq.squeeze(1)
+        target_sequence = target_sequence.squeeze(1)
         trg_pts_aux = util_funcs.select_seqs(
-            input_pts_aux, trg_cls, self.opts.n_aux_pts
+            input_pts_aux, target_class, self.opts.n_aux_pts
         )
         trg_pts_aux = trg_pts_aux.squeeze(1)
         # the one-hot target char class
-        trg_char_onehot = util_funcs.trgcls_to_onehot(trg_cls, self.char_num)
+        trg_char_onehot = util_funcs.target_class_to_onehot(
+            target_class, self.glyphset_size
+        )
         # shift target sequence
-        trg_seq_gt = trg_seq.clone().detach()
-        trg_seq_gt = torch.cat((trg_seq_gt[:, :, :1], trg_seq_gt[:, :, 3:]), -1)
-        trg_seq = trg_seq.transpose(0, 1)
-        trg_seq_shifted = util_funcs.shift_right(trg_seq)
+        target_sequence_gt = target_sequence.clone().detach()
+        target_sequence_gt = torch.cat(
+            (target_sequence_gt[:, :, :1], target_sequence_gt[:, :, 3:]), -1
+        )
+        target_sequence = target_sequence.transpose(0, 1)
+        target_sequence_shifted = util_funcs.shift_right(target_sequence)
 
         ref_seq_cat = ref_seq.view(
             ref_seq.size(0) * ref_seq.size(1), ref_seq.size(2), ref_seq.size(3)
         )
         ref_seq_cat = ref_seq_cat.transpose(0, 1)
-        ref_seqlen = util_funcs.select_seqlens(input_seqlen, ref_cls)
+        ref_seqlen = util_funcs.select_seqlens(input_sequence_length, reference_class)
         ref_seqlen_cat = ref_seqlen.view(
             ref_seqlen.size(0) * ref_seqlen.size(1), ref_seqlen.size(2)
         )
@@ -319,8 +335,10 @@ class ModelMain(nn.Module):
         for i in range(ref_seqlen_cat.size(0)):
             ref_pad_mask[i, : ref_seqlen_cat[i]] = 1
         ref_pad_mask = ref_pad_mask.to(device).float().unsqueeze(1)
-        trg_seqlen = util_funcs.select_seqlens(input_seqlen, trg_cls)
-        trg_seqlen = trg_seqlen.squeeze()
+        target_sequencelen = util_funcs.select_seqlens(
+            input_sequence_length, target_class
+        )
+        target_sequencelen = target_sequencelen.squeeze()
 
         return (
             [ref_img, trg_img],
@@ -328,10 +346,10 @@ class ModelMain(nn.Module):
                 ref_seq,
                 ref_seq_cat,
                 ref_pad_mask,
-                trg_seq,
-                trg_seq_gt,
-                trg_seq_shifted,
+                target_sequence,
+                target_sequence_gt,
+                target_sequence_shifted,
                 trg_pts_aux,
             ],
-            [trg_char_onehot, trg_cls, trg_seqlen],
+            [trg_char_onehot, target_class, target_sequencelen],
         )

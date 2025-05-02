@@ -48,8 +48,8 @@ def select_seqlens(seqlens_of_onefont, selected_cls):
     return selected_seqlens
 
 
-def trgcls_to_onehot(trg_cls, char_num):
-    trg_char = F.one_hot(trg_cls, num_classes=char_num).squeeze(dim=1)
+def target_class_to_onehot(target_class, glyphset_size):
+    trg_char = F.one_hot(target_class, num_classes=glyphset_size).squeeze(dim=1)
     return trg_char
 
 

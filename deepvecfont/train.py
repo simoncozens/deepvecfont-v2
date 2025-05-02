@@ -171,7 +171,7 @@ class Trainer:
 
     def do_sample(self, epoch, ret_dict, batches_done):
         img_sample = torch.cat(
-            (ret_dict["img"]["trg"].data, ret_dict["img"]["out"].data), -2
+            (ret_dict["target_image"].data, ret_dict["generated_image"].data), -2
         )
         save_file = os.path.join(
             self.dir_sample, f"train_epoch_{epoch}_batch_{batches_done}.png"
@@ -218,9 +218,11 @@ class Trainer:
             self.opts.kl_beta * loss_dict["kl"].item(),
             batches_done,
         )
-        self.writer.add_image("Images/trg_img", ret_dict["img"]["trg"][0], batches_done)
         self.writer.add_image(
-            "Images/img_output", ret_dict["img"]["out"][0], batches_done
+            "Images/trg_img", ret_dict["target_image"][0], batches_done
+        )
+        self.writer.add_image(
+            "Images/img_output", ret_dict["generated_image"][0], batches_done
         )
 
     def log_message(self, epoch, idx, loss_dict, loss, batches_done):
