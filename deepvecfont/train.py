@@ -242,16 +242,13 @@ class Trainer:
 
 
 def train(opts):
-    if opts.model_name == "main_model":
-        Trainer(opts).train()
-    else:
-        raise NotImplementedError
+    Trainer(opts).train()
 
 
 def main():
 
     opts = get_parser_main_model().parse_args()
-    opts.name_exp = opts.name_exp + "_" + opts.model_name
+    opts.name_exp = opts.name_exp + "_main_model"
     os.makedirs("./experiments", exist_ok=True)
     debug = True
     # Create directories

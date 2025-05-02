@@ -165,7 +165,7 @@ def test_main_model(opts):
 def main():
 
     opts = get_parser_main_model().parse_args()
-    opts.name_exp = opts.name_exp + "_" + opts.model_name
+    opts.name_exp = opts.name_exp + "_main_model"
     print(f"Testing on experiment {opts.name_exp}...")
     # Dump options
     test_main_model(opts)

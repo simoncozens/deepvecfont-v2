@@ -27,13 +27,6 @@ def get_parser_main_model():
     )
 
     group = parser.add_argument_group("basic parameters training related")
-    group.add_argument(
-        "--model_name",
-        type=str,
-        default="main_model",
-        choices=["main_model", "neural_raster"],
-        help="current model_name",
-    )
     add_language_arg(group)
     group.add_argument(
         "--bottleneck_bits",
