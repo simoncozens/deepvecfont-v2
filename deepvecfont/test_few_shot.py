@@ -129,11 +129,10 @@ def test_main_model(opts):
                     syn_svg_f.close()
                     syn_img_outfile = syn_svg_outfile.replace(".svg", ".png")
                     svg2img(syn_svg_outfile, syn_img_outfile, img_size=opts.img_size)
-                    iou_tmp, l1_tmp = cal_iou(
+                    iou_tmp, _l1_tmp = cal_iou(
                         syn_img_outfile,
                         os.path.join(dir_save, "imgs", f"{i:02d}_{opts.img_size}.png"),
                     )
-                    iou_tmp = iou_tmp
                     if iou_tmp > iou_max[i]:
                         iou_max[i] = iou_tmp
                         idx_best_sample[i] = sample_idx
