@@ -44,7 +44,7 @@ class SVGDataset(data.Dataset):
         )
         item["sequence"] = torch.FloatTensor(
             np.load(os.path.join(font_path, "sequence_relaxed.npy"))
-        ).view(self.glyphset_size, MAX_SEQ_LEN, self.dim_seq)
+        ).view(self.glyphset_size, MAX_SEQ_LEN + 1, self.dim_seq)
         item["pts_aux"] = torch.FloatTensor(
             np.load(os.path.join(font_path, "pts_aux.npy"))
         )
