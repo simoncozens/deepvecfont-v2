@@ -1,0 +1,31 @@
+[build-system]
+requires = [
+   "setuptools>=69.5.1",
+   "setuptools_scm[toml]>=8.1.0"
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+dynamic = ["version"]
+name = "deepvecfont-v2"
+readme = "README.md"
+
+dependencies = [
+   "torch>=1.13.1",
+   "torchvision>=0.14.1",
+   "tensorboardX",
+   "einops",
+   "timm",
+   "scikit-image",
+   "cairosvg"
+]
+
+[tool.pylint.'MESSAGES CONTROL']
+max-line-length = 120
+disable = [
+   "not-callable",  # false positives on F.one_hot
+   "missing-function-docstring",
+   "missing-module-docstring",
+   "missing-class-docstring",
+   "unspecified-encoding",
+]

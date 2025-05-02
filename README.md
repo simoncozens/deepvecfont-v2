@@ -15,8 +15,7 @@ Paper: [Arxiv](https://arxiv.org/abs/2303.14585) Video: [Youtube](https://www.yo
 ```
 conda create -n dvf_v2 python=3.9
 conda activate dvf_v2
-pip install torch==1.13.1+cu117 torchvision==0.14.1+cu117 --extra-index-url https://download.pytorch.org/whl/cu117
-pip install tensorboardX einops timm scikit-image cairosvg
+pip install .
 ```
 
 ## Dataset

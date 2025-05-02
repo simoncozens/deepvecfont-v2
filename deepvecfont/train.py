@@ -25,7 +25,7 @@ from deepvecfont.models.util_funcs import device
 
 
 class CustomProgress(Progress):
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self) -> None:
         self.losses = {}
         self.update_table({})
         super().__init__(
@@ -106,7 +106,7 @@ class Trainer:
 
                     batches_done = epoch * len(self.train_loader) + idx + 1
                     if batches_done % self.opts.freq_log == 0:
-                        self.log_message(pb, epoch, idx, loss_dict, loss, batches_done)
+                        self.log_message(pb, epoch, idx, loss_dict, loss)
                         if self.opts.tboard:
                             self.write_tboard(ret_dict, loss_dict, loss, batches_done)
 
@@ -237,7 +237,7 @@ class Trainer:
             "Images/generated_output", ret_dict["generated_image"][0], batches_done
         )
 
-    def log_message(self, pb, epoch, idx, loss_dict, loss, batches_done):
+    def log_message(self, pb, epoch, idx, loss_dict, loss):
         message = {
             "Loss": f"{loss.item():.6f}",
             "img_l1_loss": f"{self.opts.loss_w_l1 * loss_dict['img_l1'].item():.6f}",

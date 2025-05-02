@@ -23,7 +23,7 @@ from .vgg_perceptual_loss import VGGPerceptualLoss
 
 class ModelMain(nn.Module):
 
-    def __init__(self, opts, mode="train"):
+    def __init__(self, opts):
         super().__init__()
         self.opts = opts
         self.glyphset_size = len(get_charset(opts))
@@ -44,24 +44,11 @@ class ModelMain(nn.Module):
         self.modality_fusion = ModalityFusion(opts)
         self.transformer_main = Transformer(
             opts,
-            input_channels=1,
-            input_axis=2,  # number of axis for input data (2 for images, 3 for video)
-            num_freq_bands=6,  # number of freq bands, with original value (2 * K + 1)
-            max_freq=10.0,  # maximum frequency, hyperparameter depending on how fine the data is
-            depth=6,  # depth of net. The shape of the final attention mechanism will be:
-            # depth * (cross attention -> self_per_cross_attn * self attention)
-            num_latents=256,  # number of latents, or induced set points, or centroids. different papers giving it different names
-            latent_dim=opts.dim_seq_latent,  # latent dimension
-            cross_heads=1,  # number of heads for cross attention. paper said 1
-            latent_heads=8,  # number of heads for latent self attention, 8
-            cross_dim_head=64,  # number of dimensions per cross attention head
-            latent_dim_head=64,  # number of dimensions per latent self attention head
-            num_classes=1000,  # output number of classes
-            attn_dropout=0.0,
-            ff_dropout=0.0,
-            weight_tie_layers=False,  # whether to weight tie layers (optional, as indicated in the diagram)
-            fourier_encode_data=True,  # whether to auto-fourier encode the data, using the input_axis given. defaults to True, but can be turned off if you are fourier encoding the data yourself
-            self_per_cross_attn=2,  # number of self attention blocks per cross attention
+            num_freq_bands=6,
+            max_freq=10.0,
+            depth=6,
+            num_latents=256,
+            latent_dim=opts.dim_seq_latent,
         )
 
         self.transformer_seqdec = Transformer_decoder(opts)
@@ -338,7 +325,7 @@ class ModelMain(nn.Module):
             return torch.randint(
                 0, self.glyphset_size, (batch_size, self.opts.ref_nshot)
             ).to(device)
-        elif mode == "val":
+        if mode == "val":
             # Choose first ref_nshot classes
             return (
                 torch.arange(0, self.opts.ref_nshot, 1)
@@ -346,14 +333,10 @@ class ModelMain(nn.Module):
                 .unsqueeze(0)
                 .expand(batch_size, -1)
             )
-        else:
-            # Take from ref_char_ids
-            ref_ids = self.opts.ref_char_ids.split(",")
-            ref_ids = list(map(int, ref_ids))
-            assert len(ref_ids) == self.opts.ref_nshot
-            return (
-                torch.tensor(ref_ids)
-                .to(device)
-                .unsqueeze(0)
-                .expand(self.glyphset_size, -1)
-            )
+        # Take from ref_char_ids
+        ref_ids = self.opts.ref_char_ids.split(",")
+        ref_ids = list(map(int, ref_ids))
+        assert len(ref_ids) == self.opts.ref_nshot
+        return (
+            torch.tensor(ref_ids).to(device).unsqueeze(0).expand(self.glyphset_size, -1)
+        )
