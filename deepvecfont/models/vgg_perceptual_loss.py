@@ -7,7 +7,7 @@ from .util_funcs import device
 class VGG19Feats(torch.nn.Module):
     def __init__(self, requires_grad=False):
         super(VGG19Feats, self).__init__()
-        vgg = torchvision.models.vgg19(pretrained=True).to(device)  # .cuda()
+        vgg = torchvision.models.vgg19(weights=torchvision.models.VGG19_Weights.DEFAULT).to(device)
         # vgg.eval()
         vgg_pretrained_features = vgg.features.eval()
         self.requires_grad = requires_grad
