@@ -82,8 +82,7 @@ class ModelMain(nn.Module):
         trg_char_onehot, trg_cls, trg_seqlen = scalars
 
         # image encoding
-        img_encoder_out = self.img_encoder(ref_img)
-        img_feat = img_encoder_out["img_feat"]  # bs, ngf * (2 ** 6)
+        img_feat = self.img_encoder(ref_img)  # shape = [batch_size, ngf * 2**6]
 
         # seq encoding
         ref_img_ = ref_img.view(

@@ -62,7 +62,4 @@ class ImageEncoder(nn.Module):
     def forward(self, inp):
         """Standard forward"""
         ret = self.encode(inp)
-        img_feat = self.flatten(ret)
-        output = {}
-        output["img_feat"] = img_feat
-        return output
+        return self.flatten(ret)
