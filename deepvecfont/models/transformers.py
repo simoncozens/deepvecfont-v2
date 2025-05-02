@@ -12,6 +12,7 @@ from torch import einsum, nn
 
 from deepvecfont.data_utils.svg_utils import MAX_SEQ_LEN
 import deepvecfont.models.util_funcs as util_funcs
+from deepvecfont.options import get_charset
 
 
 class PositionalEncoding(nn.Module):
@@ -217,6 +218,7 @@ class Transformer_decoder(nn.Module):
         super().__init__()
         self.opts = opts
         self.SVG_embedding = SVGEmbedding(opts)
+        self.glyphset_size = len(get_charset(opts))
         self.command_fcn = nn.Linear(512, 4)
         self.args_fcn = nn.Linear(512, 8 * 128)
         c = copy.deepcopy
@@ -230,7 +232,7 @@ class Transformer_decoder(nn.Module):
             DecoderLayer(512, c(attn), c(attn), c(ff), dropout=0.0), 1
         )
         self.decoder_norm_parallel = nn.LayerNorm(512)
-        self.cls_embedding = nn.Embedding(52, 512)
+        self.cls_embedding = nn.Embedding(self.glyphset_size, 512)
         self.cls_token = nn.Parameter(torch.zeros(1, 1, 512))
 
     def forward(self, x, memory, trg_char, src_mask=None, tgt_mask=None):
