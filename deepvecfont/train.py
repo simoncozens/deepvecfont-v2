@@ -126,15 +126,15 @@ class Trainer:
                 for item, loss in loss_dict_val.items():
                     val_loss[item] += loss
 
-            # Average losses over the validation set
-            for key in val_loss.keys():
-                val_loss[key] /= len(self.val_loader)
+        # Average losses over the validation set
+        for key in val_loss.keys():
+            val_loss[key] /= len(self.val_loader)
 
-            if self.opts.tboard:
-                for key, loss in val_loss.items():
-                    self.writer.add_scalar(f"VAL/{key}", loss, batches_done)
+        if self.opts.tboard:
+            for key, loss in val_loss.items():
+                self.writer.add_scalar(f"VAL/{key}", loss, batches_done)
 
-            self.log_message_val(epoch, idx, val_loss)
+        self.log_message_val(epoch, idx, val_loss)
 
     def save_checkpoint(self, epoch, batches_done):
         torch.save(
