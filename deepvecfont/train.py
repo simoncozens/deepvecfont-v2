@@ -61,7 +61,7 @@ class Trainer:
         if self.opts.restart:
             self.load_checkpoint()
 
-        self.setup_seed(self.opts.seed)
+        self.setup_seed(1111)
         for epoch in range(self.opts.init_epoch, self.opts.n_epochs):
             for idx, data in enumerate(self.train_loader):
                 for key in data:
