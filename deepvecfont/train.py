@@ -220,6 +220,7 @@ class Trainer:
         )
 
         self.logfile_val.write(val_msg + "\n")
+        self.logfile_val.flush()
         pb.console.print(val_msg)
 
     def write_tboard(self, ret_dict, loss_dict, loss, batches_done):
@@ -255,6 +256,7 @@ class Trainer:
             + ", ".join([f"{k}: {v}" for k, v in message.items()])
         )
         self.logfile_train.write(message + "\n")
+        self.logfile_train.flush()
 
 
 def train(opts):
