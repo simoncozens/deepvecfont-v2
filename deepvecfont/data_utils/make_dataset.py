@@ -2,9 +2,13 @@ import argparse
 import os
 from pathlib import Path
 
+import cairo
 import numpy as np
-from PIL import Image, ImageDraw, ImageFont
+import torch
 import tqdm
+from fontTools.pens.cairoPen import CairoPen
+from PIL import Image, ImageDraw, ImageFont
+from torch.utils.data import random_split
 
 from deepvecfont.data_utils import svg_utils
 from deepvecfont.data_utils.extract_path import extract_path, make_hb_font
@@ -12,29 +16,35 @@ from deepvecfont.data_utils.relax_rep import cal_aux_bezier_pts, relax_a_charact
 from deepvecfont.data_utils.svg_utils import MAX_SEQ_LEN
 from deepvecfont.options import add_language_arg, get_charset
 
+generator1 = torch.Generator().manual_seed(42)
+
 
 def create_db(opts, output_path, log_path):
     charset = get_charset(opts)
     print("Process ttf to npy files in dirs....")
-    ttf_path = Path(opts.ttf_path) / opts.language / opts.split
-    all_font_paths = sorted(list(ttf_path.glob("*.?tf")))
+    ttf_path = Path(opts.ttf_path)
+    all_font_paths = sorted(list(ttf_path.rglob("*.?tf")))
+    # Ditch invalids now
+    all_font_paths = [p for p in all_font_paths if has_all_glyphs(p, charset)]
+    # Let's do a train/test split here
+    train, test = random_split(all_font_paths, [0.8, 0.2], generator=generator1)
+    if opts.split == "train":
+        all_font_paths = train
+    elif opts.split == "test":
+        all_font_paths = test
+
     num_fonts = len(all_font_paths)
     num_fonts_w = len(str(num_fonts))
     print(f"Number {opts.split} fonts before processing", num_fonts)
 
     for i, font_path in tqdm.tqdm(enumerate(all_font_paths), total=num_fonts):
-        cur_font_glyphs = load_font_glyphs(charset, font_path)
+        font, upem = make_hb_font(font_path)
+        cur_font_glyphs = load_font_glyphs(charset, font_path, font, upem)
 
         if cur_font_glyphs is None:
-            print("skipping font", font_path)
+            print("skipping font (paths too long)", font_path)
             continue
 
-        try:
-            font = ImageFont.truetype(font_path, opts.img_size, encoding="unic")
-        except Exception:
-            print("cant open " + str(font_path))
-            continue
-        # use the font whose all glyphs are valid
         # merge the whole font
         sequence = []
         seq_len = []
@@ -49,7 +59,7 @@ def create_db(opts, output_path, log_path):
             assert example["seq_len"][0] <= MAX_SEQ_LEN
             seq_len.append(example["seq_len"])
             char_class.append(example["class"])
-            rendering = render_glyph(font, char, opts.img_size)
+            rendering = render_glyph(font, upem, char, opts.img_size)
             if rendering is None:
                 print("skipping glyph", char)
                 ok = False
@@ -88,55 +98,38 @@ def create_db(opts, output_path, log_path):
     )
 
 
-def render_glyph(font, char, img_size):
+def render_glyph(font, upem, char, img_size):
     """Render a single glyph to an image."""
-    # Create a blank image with white background
-    img = Image.new("L", (img_size, img_size), 255)
-    draw = ImageDraw.Draw(img)
-    try:
-        l, t, r, b = font.getbbox(char)
-    except Exception:
-        print("cannot get bbox")
-        return
-    vbox_w = r - l
-    vbox_h = b - t
-    aspect_ratio = float(img_size) / max(int(vbox_w), int(vbox_h))
-
-    if int(vbox_h) > int(vbox_w):
-        add_to_y = 0
-        add_to_x = abs(int(vbox_h) - int(vbox_w)) / 2
-        add_to_x = add_to_x * aspect_ratio
-    else:
-        add_to_y = abs(int(vbox_h) - int(vbox_w)) / 2
-        add_to_y = add_to_y * aspect_ratio
-        add_to_x = 0
-
-    array = np.ndarray((img_size, img_size), np.uint8)
-    array[:, :] = 255
-    image = Image.fromarray(array)
-    draw = ImageDraw.Draw(image)
-
-    try:
-        ascent, _ = font.getmetrics()
-    except Exception:
-        print("cannot get ascent, descent")
-        return
-
-    draw.text(
-        (
-            add_to_x,
-            add_to_y + img_size - ascent - int((img_size / 24.0) * (4.0 / 3.0)),
-        ),
-        char,
-        (0),
-        font=font,
-    )
-    # Convert the image to a numpy array
-    return np.array(image)
+    scale_factor = img_size / upem
+    surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, img_size, img_size)
+    cr = cairo.Context(surface)
+    ascent_correction = int((img_size / 24.0) * (4.0 / 3.0))
+    cr.set_source_rgb(1, 1, 1)
+    cr.paint()
+    cr.transform(cairo.Matrix(1, 0, 0, -1, 0, img_size - ascent_correction))
+    cr.scale(scale_factor, scale_factor)
+    pen = CairoPen({}, cr)
+    font.draw_glyph_with_pen(font.get_nominal_glyph(ord(char)), pen)
+    cr.set_source_rgba(0, 0, 0, 1)
+    cr.fill()
+    with surface.get_data() as memory:
+        img = Image.frombuffer(
+            "RGBA",
+            (img_size, img_size),
+            memory.tobytes(),
+            "raw",
+            "BGRa",
+            surface.get_stride(),
+        )
+    return np.array(img)[:, :, 0]  # Only keep the first channel
 
 
-def load_font_glyphs(charset, font_path):
-    font, upem = make_hb_font(font_path)
+def has_all_glyphs(font_path, charset):
+    font, _upem = make_hb_font(font_path)
+    return all(font.get_nominal_glyph(ord(char)) is not None for char in charset)
+
+
+def load_font_glyphs(charset, font_path, font, upem):
     good_paths = []
 
     for char in charset:

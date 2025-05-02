@@ -47,5 +47,7 @@ def make_hb_font(filepath):
 
 
 if __name__ == "__main__":
-    font, upem = make_hb_font("./font_ttfs/train/00001.ttf")
+    import sys
+
+    font, upem = make_hb_font(sys.argv[1])
     print(extract_path(font, "S", upem))

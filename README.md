@@ -74,8 +74,8 @@ Taking --language 'eng' (English) as an example (it also could be 'chn' (Chinese
 Modify `MAX_SEQ_LEN` (the maximum sequence length) in `svg_utils.py`. We set `MAX_SEQ_LEN` to `50` for English and `70` for Chinese. You can also change the number according to your need.
 
 ```
-python -m deepvecfont.data_utils.make_dataset --split train --language eng
-python -m deepvecfont.data_utils.make_dataset --split test --language eng
+python -m deepvecfont.data_utils.make_dataset --split train
+python -m deepvecfont.data_utils.make_dataset --split test
 ```
 
 
