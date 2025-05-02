@@ -17,7 +17,8 @@ dependencies = [
    "einops",
    "timm",
    "scikit-image",
-   "cairosvg"
+   "cairosvg",
+   "rich"
 ]
 
 [tool.pylint.'MESSAGES CONTROL']
