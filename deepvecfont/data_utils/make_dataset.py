@@ -1,13 +1,15 @@
 import argparse
 import os
 from pathlib import Path
+import itertools
 
 import cairo
 import numpy as np
 import torch
 import tqdm
 from fontTools.pens.cairoPen import CairoPen
-from PIL import Image, ImageDraw, ImageFont
+from fontTools.ttLib import TTFont
+from PIL import Image
 from torch.utils.data import random_split
 
 from deepvecfont.data_utils import svg_utils
@@ -18,6 +20,10 @@ from deepvecfont.options import add_language_arg, get_charset
 
 generator1 = torch.Generator().manual_seed(42)
 
+BANNED = ["noto", "bitcount", "adobeblank"]
+
+NUM_AXIS_INSTANCES = 5  # Number of instances to generate for each axis
+
 
 def create_db(opts, output_path, log_path):
     charset = get_charset(opts)
@@ -25,7 +31,11 @@ def create_db(opts, output_path, log_path):
     ttf_path = Path(opts.ttf_path)
     all_font_paths = sorted(list(ttf_path.rglob("*.?tf")))
     # Ditch invalids now
-    all_font_paths = [p for p in all_font_paths if has_all_glyphs(p, charset)]
+    all_font_paths = [
+        p
+        for p in all_font_paths
+        if has_all_glyphs(p, charset) and not any(banned in str(p) for banned in BANNED)
+    ]
     # Let's do a train/test split here
     train, test = random_split(all_font_paths, [0.8, 0.2], generator=generator1)
     if opts.split == "train":
@@ -33,12 +43,21 @@ def create_db(opts, output_path, log_path):
     elif opts.split == "test":
         all_font_paths = test
 
-    num_fonts = len(all_font_paths)
+    # And now we're going to augment the dataset with variable fonts!
+    print(f"Number {opts.split} fonts before aumentation", len(all_font_paths))
+    fonts_locations = list(augment_variables(all_font_paths))
+    print(f"Number {opts.split} fonts after aumentation", len(fonts_locations))
+
+    num_fonts = len(fonts_locations)
     num_fonts_w = len(str(num_fonts))
     print(f"Number {opts.split} fonts before processing", num_fonts)
 
-    for i, font_path in tqdm.tqdm(enumerate(all_font_paths), total=num_fonts):
+    for i, (font_path, location) in tqdm.tqdm(
+        enumerate(fonts_locations), total=num_fonts
+    ):
         font, upem = make_hb_font(font_path)
+        if location:
+            font.set_variations(location)
         cur_font_glyphs = load_font_glyphs(charset, font_path, font, upem)
 
         if cur_font_glyphs is None:
@@ -184,6 +203,25 @@ def cal_mean_stddev(opts, output_path):
     os.rename(
         os.path.join(output_path_, "stdev.npy"), os.path.join(output_path_, "stdev.npz")
     )
+
+
+def augment_variables(all_font_paths):
+    for path in all_font_paths:
+        ttfont = TTFont(path)
+        if "fvar" not in ttfont:
+            yield path, None
+            continue
+        axes = {
+            axis.axisTag: np.linspace(
+                axis.minValue, axis.maxValue, NUM_AXIS_INSTANCES
+            ).tolist()
+            for axis in ttfont["fvar"].axes[0:5]
+        }
+        tags = axes.keys()
+        instances = itertools.product(*axes.values())
+        instances = [dict(zip(tags, instance)) for instance in instances]
+        for instance in instances:
+            yield path, instance
 
 
 def main():
