@@ -752,7 +752,7 @@ start = (
 end = """\" fill="currentColor"/></svg>"""
 
 COMMAND_RX = re.compile("([MmLlHhVvCcSsQqTtAaZz])")
-FLOAT_RX = re.compile("[-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?")  # noqa
+FLOAT_RX = re.compile(r"[-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?")  # noqa
 
 
 def svg_html_to_path_string(svg):
