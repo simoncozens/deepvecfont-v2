@@ -72,15 +72,6 @@ def grouper(iterable, batch_size, fill_value=None):
     return zip_longest(*args, fillvalue=fill_value)
 
 
-def _map_uni_to_alphanum(uni):
-    """Maps [0-9 A-Z a-z] to numbers 0-62."""
-    if 48 <= uni <= 57:
-        return uni - 48
-    elif 65 <= uni <= 90:
-        return uni - 65 + 10
-    return uni - 97 + 36
-
-
 def _map_uni_to_alpha(uni):
     """Maps [A-Z a-z] to numbers 0-52."""
     if 65 <= uni <= 90:
@@ -88,194 +79,7 @@ def _map_uni_to_alpha(uni):
     return uni - 97 + 26
 
 
-############# UTILS FOR CONVERTING SFD/SPLINESETS TO SVG PATHS ################
-def _get_spline(sfd):
-    if "SplineSet" not in sfd:
-        return ""
-    pro = sfd[sfd.index("SplineSet") + 10 :]  # 10 is the 'SplineSet'
-    pro = pro[: pro.index("EndSplineSet")]
-    return pro
-
-
-def _spline_to_path_list(spline, height, replace_with_prev=False):
-    """Converts SplineSet to a list of tokenized commands in svg path."""
-    path = []
-    prev_xy = []
-    for line in spline.splitlines():
-        if not line:
-            continue
-        tokens = line.split(" ")
-        cmd = tokens[-2]
-        if cmd not in "cml":
-            # COMMAND NOT RECOGNIZED.
-            return []
-            # assert cmd in 'cml', 'Command not recognized: {}'.format(cmd)
-        args = tokens[:-2]
-        args = [float(x) for x in args if x]
-
-        if replace_with_prev and cmd in "c":
-            args[:2] = prev_xy
-        prev_xy = args[-2:]
-
-        new_y_args = []
-        for i, a in enumerate(args):
-            if i % 2 == 1:
-                new_y_args.append((height - a))
-            else:
-                new_y_args.append((a))
-
-        path.append([cmd.upper()] + new_y_args)
-    return path
-
-
-def _sfd_to_path_list(single, replace_with_prev=False):
-    """Converts the given SFD glyph into a path."""
-    return _spline_to_path_list(
-        _get_spline(single["sfd"]), single["vwidth"], replace_with_prev
-    )
-
-
 #################### UTILS FOR PROCESSING TOKENIZED PATHS #####################
-def _add_missing_cmds(path, remove_zs=False):
-    """Adds missing cmd tags to the commands in the svg."""
-    # For instance, the command 'a' takes 7 arguments, but some SVGs declare:
-    #   a 1 2 3 4 5 6 7 8 9 10 11 12 13 14
-    # Which is 14 arguments. This function converts the above to the equivalent:
-    #   a 1 2 3 4 5 6 7  a 8 9 10 11 12 13 14
-    #
-    # Note: if remove_zs is True, this also removes any occurences of z commands.
-    new_path = []
-    for cmd in path:
-        if not remove_zs or cmd[0] not in "Zz":
-            for new_cmd in add_missing_cmd(cmd):
-                new_path.append(new_cmd)
-    return new_path
-
-
-def add_missing_cmd(command_list):
-    """Adds missing cmd tags to the given command list."""
-    # E.g.: given:
-    #   ['a', '0', '0', '0', '0', '0', '0', '0',
-    #         '0', '0', '0', '0', '0', '0', '0']
-    # Converts to:
-    #   [['a', '0', '0', '0', '0', '0', '0', '0'],
-    #    ['a', '0', '0', '0', '0', '0', '0', '0']]
-    # And returns a string that joins these elements with spaces.
-    cmd_tag = command_list[0]
-    args = command_list[1:]
-
-    final_cmds = []
-    for arg_batch in grouper(args, NUM_ARGS[cmd_tag]):
-        final_cmds.append([cmd_tag] + list(arg_batch))
-
-    if not final_cmds:
-        # command has no args (e.g.: 'z')
-        final_cmds = [[cmd_tag]]
-
-    return final_cmds
-
-
-def _normalize_args(arglist, norm, add=None, flip=False):
-    """Normalize the given args with the given norm value."""
-    new_arglist = []
-    for i, arg in enumerate(arglist):
-        new_arg = float(arg)
-
-        if add is not None:
-            add_to_x, add_to_y = add
-
-            # This argument is an x-coordinate if even, y-coordinate if odd
-            # except when flip == True
-            if i % 2 == 0:
-                new_arg += add_to_y if flip else add_to_x
-            else:
-                new_arg += add_to_x if flip else add_to_y
-
-        new_arglist.append(str(24 * new_arg / norm))
-    return new_arglist
-
-
-def _normalize_based_on_viewbox(path, viewbox):
-    """Normalizes all args in a path to a standard 24x24 viewbox."""
-    # Each SVG lives in a 2D plane. The viewbox determines the region of that
-    # plane that gets rendered. For instance, some designers may work with a
-    # viewbox that's 24x24, others with one that's 100x100, etc.
-
-    # Suppose I design the the letter "h" in the Arial style using a 100x100
-    # viewbox (let's call it icon A). Let's suppose the icon has height 75. Then,
-    # I design the same character using a 20x20 viewbox (call this icon B), with
-    # height 15 (=75% of 20). This means that, when rendered, both icons with look
-    # exactly the same, but the scale of the commands each icon is using is
-    # different. For instance, if icon A has a command like "lineTo 100 100", the
-    # equivalent command in icon B will be "lineTo 20 20".
-
-    # In order to avoid this problem and bring all real values to the same scale,
-    # I scale all icons' commands to use a 24x24 viewbox. This function does this:
-    # it converts a path that exists in the given viewbox into a standard 24x24
-    # viewbox.
-    viewbox = viewbox.split(" ")
-    norm = max(int(viewbox[-1]), int(viewbox[-2]))
-
-    if int(viewbox[-1]) > int(viewbox[-2]):
-        add_to_y = 0
-        add_to_x = abs(int(viewbox[-1]) - int(viewbox[-2])) / 2
-    else:
-        add_to_y = abs(int(viewbox[-1]) - int(viewbox[-2])) / 2
-        add_to_x = 0
-
-    new_path = []
-    for command in path:
-        if command[0] == "a":
-            new_path.append(
-                [command[0]]
-                + _normalize_args(command[1:3], norm)
-                + command[3:6]
-                + _normalize_args(command[6:], norm)
-            )
-        elif command[0] == "A":
-            new_path.append(
-                [command[0]]
-                + _normalize_args(command[1:3], norm)
-                + command[3:6]
-                + _normalize_args(command[6:], norm, add=(add_to_x, add_to_y))
-            )
-        elif command[0] == "V":
-            new_path.append(
-                [command[0]]
-                + _normalize_args(
-                    command[1:], norm, add=(add_to_x, add_to_y), flip=True
-                )
-            )
-        elif command[0] == command[0].upper():
-            new_path.append(
-                [command[0]]
-                + _normalize_args(command[1:], norm, add=(add_to_x, add_to_y))
-            )
-        elif command[0] in "zZ":
-            new_path.append([command[0]])
-        else:
-            new_path.append([command[0]] + _normalize_args(command[1:], norm))
-
-    return new_path
-
-
-def _convert_args(args, curr_pos, cmd):
-    """Converts given args to relative values."""
-    # NOTE: glyphs only use a very small subset of commands (L, C, M, and Z -- I
-    # believe). So I'm not handling A and H for now.
-    if cmd in "AH":
-        raise NotImplementedError("These commands have >6 args (not supported).")
-
-    new_args = []
-    for i, arg in enumerate(args):
-        x_or_y = i % 2
-        if cmd == "H":
-            x_or_y = (i + 1) % 2
-        new_args.append(str(float(arg) - curr_pos[x_or_y]))
-
-    return new_args
-
-
 def _update_curr_pos(curr_pos, cmd, start_of_path):
     """Calculate the position of the pen after cmd is applied."""
     if cmd[0] in "ml":
@@ -292,23 +96,6 @@ def _update_curr_pos(curr_pos, cmd, start_of_path):
         curr_pos = [curr_pos[0] + float(cmd[-2]), curr_pos[1] + float(cmd[-1])]
 
     return curr_pos, start_of_path
-
-
-def _make_relative(cmds):
-    """Convert commands in a path to relative positioning."""
-    curr_pos = (0.0, 0.0)
-    start_of_path = (0.0, 0.0)
-    new_cmds = []
-    for cmd in cmds:
-        if cmd[0].lower() == cmd[0]:
-            new_cmd = cmd
-        elif cmd[0].lower() == "z":
-            new_cmd = [cmd[0].lower()]
-        else:
-            new_cmd = [cmd[0].lower()] + _convert_args(cmd[1:], curr_pos, cmd=cmd[0])
-        new_cmds.append(new_cmd)
-        curr_pos, start_of_path = _update_curr_pos(curr_pos, new_cmd, start_of_path)
-    return new_cmds
 
 
 def _is_to_left_of(pt1, pt2):
@@ -1021,17 +808,9 @@ def is_valid_path(pathunibfp):
 
 
 ################### DATASET PROCESSING #######################################
-def convert_to_path(g):
-    """Converts SplineSet in SFD font to str path."""
-    path = _sfd_to_path_list(g)
-    path = _add_missing_cmds(path, remove_zs=False)
-    path = _normalize_based_on_viewbox(
-        path, "0 0 {} {}".format(g["width"], g["vwidth"])
-    )
-    return path, g["uni"], g["binary_fp"]
 
 
-def create_example(pathunibfp):
+def create_example(pathunibfp, glyphset):
     """Bulk of dataset processing. Converts str path to np array"""
     path, uni, binary_fp = pathunibfp
     final = {}
@@ -1041,11 +820,6 @@ def create_example(pathunibfp):
     # make clockwise
     path = _canonicalize(path)
 
-    # render path for training
-    # final["rendered"] = _per_step_render(path, absolute=True)
-
-    # make path relative
-    # path = _make_relative(path)
     # convert to vector
     vector = _path_to_vector(path, categorical=True)
     # make simple vector
@@ -1056,10 +830,6 @@ def create_example(pathunibfp):
 
     # count some stats
     final["seq_len"] = np.shape(vector)[0]
-    # final['class'] = int(_map_uni_to_alphanum(uni))
-    final["class"] = int(
-        _map_uni_to_alpha(uni)
-    )  # be advised that the class is useless bcz it is all 0
     final["binary_fp"] = str(binary_fp)
 
     # append eos
@@ -1070,17 +840,11 @@ def create_example(pathunibfp):
         (vector, np.zeros(((MAX_SEQ_LEN - final["seq_len"]), 10))), 0
     )
 
-    # make pure list:
-    # use last channel only
-    # final["rendered"] = (
-    #     np.reshape(final["rendered"][..., 0], [64 * 64]).astype(np.float32).tolist()
-    # )
     final["sequence"] = (
         np.reshape(final["sequence"], [(MAX_SEQ_LEN + 1) * 10])
         .astype(np.float32)
         .tolist()
     )
-    final["class"] = np.reshape(final["class"], [1]).astype(np.int64).tolist()
     final["seq_len"] = np.reshape(final["seq_len"], [1]).astype(np.int64).tolist()
     return final
 
