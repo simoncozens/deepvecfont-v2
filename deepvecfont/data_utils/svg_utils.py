@@ -810,7 +810,7 @@ def is_valid_path(pathunibfp):
 ################### DATASET PROCESSING #######################################
 
 
-def create_example(pathunibfp, glyphset):
+def create_example(pathunibfp):
     """Bulk of dataset processing. Converts str path to np array"""
     path, uni, binary_fp = pathunibfp
     final = {}
