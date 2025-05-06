@@ -617,18 +617,6 @@ def postprocess(svg, dist_thresh=2.0, skip=False):
         " ".join([" ".join(" ".join(cmd) for cmd in s) for s in substructures])
     )
 
-
-# def get_means_stdevs(data_dir):
-#     """Returns the means and stdev saved in data_dir."""
-#     if data_dir not in means_stdevs:
-#         with tf.gfile.Open(os.path.join(data_dir, 'mean.npz'), 'r') as f:
-#             mean_npz = np.load(f)
-#         with tf.gfile.Open(os.path.join(data_dir, 'stdev.npz'), 'r') as f:
-#             stdev_npz = np.load(f)
-#         means_stdevs[data_dir] = (mean_npz, stdev_npz)
-#     return means_stdevs[data_dir]
-
-
 def render(tensor, data_dir=None):
     """Converts SVG decoder output into HTML svg."""
     # undo normalization
@@ -799,61 +787,3 @@ def clockwise(seq):
     vector = _append_eos(vector.tolist(), True, 10)
     ret["sequence"] = np.concatenate((vector, np.zeros(((70 - ret["seq_len"]), 10))), 0)
     return ret
-
-
-################### CHECK VALID ##############################################
-class MeanStddev:
-    """Accumulator to compute the mean/stdev of svg commands."""
-
-    def create_accumulator(self):
-        curr_sum = np.zeros([10])
-        sum_sq = np.zeros([10])
-        return (curr_sum, sum_sq, 0)  # x, x^2, count
-
-    def add_input(self, sum_count, new_input):
-        (curr_sum, sum_sq, count) = sum_count
-        # new_input is a dict with keys = ['seq_len', 'sequence']
-        new_seq_len = new_input["seq_len"][
-            0
-        ]  # Line #754 'seq_len' is a list of one int
-        assert isinstance(new_seq_len, int), print(type(new_seq_len))
-
-        # remove padding and eos from sequence
-        assert isinstance(new_input["sequence"], list), print(
-            type(new_input["sequence"])
-        )
-        new_input_np = np.reshape(np.array(new_input["sequence"]), [-1, 10])
-        assert isinstance(new_input_np, np.ndarray), print(type())
-        assert new_input_np.shape[0] >= new_seq_len
-        new_input_np = new_input_np[:new_seq_len, :]
-
-        # accumulate new_sum and new_sum_sq
-        new_sum = np.sum([curr_sum, np.sum(new_input_np, axis=0)], axis=0)
-        new_sum_sq = np.sum([sum_sq, np.sum(np.power(new_input_np, 2), axis=0)], axis=0)
-        return new_sum, new_sum_sq, count + new_seq_len
-
-    def merge_accumulators(self, accumulators):
-        curr_sums, sum_sqs, counts = list(zip(*accumulators))
-        return np.sum(curr_sums, axis=0), np.sum(sum_sqs, axis=0), np.sum(counts)
-
-    def extract_output(self, sum_count):
-        (curr_sum, curr_sum_sq, count) = sum_count
-        if count:
-            mean = np.divide(curr_sum, count)
-            variance = np.divide(curr_sum_sq, count) - np.power(mean, 2)
-            # -ve value could happen due to rounding
-            variance = np.max([variance, np.zeros(np.shape(variance))], axis=0)
-            stddev = np.sqrt(variance)
-            return {
-                "mean": mean,
-                "variance": variance,
-                "stddev": stddev,
-                "count": count,
-            }
-        else:
-            return {
-                "mean": float("NaN"),
-                "variance": float("NaN"),
-                "stddev": float("NaN"),
-                "count": 0,
-            }
