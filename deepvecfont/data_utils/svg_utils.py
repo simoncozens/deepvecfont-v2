@@ -824,9 +824,12 @@ def create_example(pathunibfp, glyphset):
     vector = _path_to_vector(path, categorical=True)
     # make simple vector
     vector = np.array(vector)
-    vector = np.concatenate(
-        [np.take(vector, [0, 4, 5, 9], axis=-1), vector[..., -6:]], axis=-1
-    )
+    if vector.shape[0] == 0:
+        vector = vector.reshape((0, 10))
+    else:
+        vector = np.concatenate(
+            [np.take(vector, [0, 4, 5, 9], axis=-1), vector[..., -6:]], axis=-1
+        )
 
     # count some stats
     final["seq_len"] = np.shape(vector)[0]

@@ -77,7 +77,7 @@ def create_db(opts, output_path, log_path):
             sequence.append(example["sequence"])
             assert example["seq_len"][0] <= MAX_SEQ_LEN
             seq_len.append(example["seq_len"])
-            char_class.append(example["class"])
+            # char_class.append(example["class"])
             rendering = render_glyph(font, upem, char, opts.img_size)
             if rendering is None:
                 print("skipping glyph", char)
@@ -148,14 +148,14 @@ def has_all_glyphs(font_path, charset):
     return all(font.get_nominal_glyph(ord(char)) is not None for char in charset)
 
 
-def load_font_glyphs(charset, font_path, font, upem):
+def load_font_glyphs(charset, font_path, font, upem, missing_ok=False):
     good_paths = []
 
     for char in charset:
         # Extract char as SVG string
         svg = extract_path(font, char, upem)
         pathunibfp = svg, ord(char), font_path
-        if not svg_utils.is_valid_path(pathunibfp):
+        if not svg_utils.is_valid_path(pathunibfp) and not missing_ok:
             return None
         good_paths.append(pathunibfp)
 
