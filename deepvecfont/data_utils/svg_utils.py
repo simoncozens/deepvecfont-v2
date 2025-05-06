@@ -37,7 +37,7 @@ NUM_ARGS = {
 }
 # in order of arg complexity, with absolutes clustered
 # recall we don't handle all commands (see docstring)
-CMDS_LIST = "zMLC"
+CMDS_LIST = "MLC"
 CMD_MAPPING = {cmd: i for i, cmd in enumerate(CMDS_LIST)}
 
 MAX_SEQ_LEN = 50
@@ -607,6 +607,8 @@ def is_valid_path(pathunibfp):
 
 
 ################### DATASET PROCESSING #######################################
+
+
 def create_example(pathunibfp, upem):
     """Bulk of dataset processing. Converts str path to np array"""
     path, uni, binary_fp = pathunibfp
@@ -623,7 +625,8 @@ def create_example(pathunibfp, upem):
     vector = np.array(vector)
     if vector.shape[0] == 0:
         vector = vector.reshape((0, 10))
-    vector = _normalize_to_upem(vector, upem)
+    # Normalize the coordinates to fractions of an upem
+    vector[:, 4:] /= upem
 
     # count some stats
     final["seq_len"] = np.shape(vector)[0]
