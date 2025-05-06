@@ -57,6 +57,11 @@ English:
 CUDA_VISIBLE_DEVICES=0 python -m deepvecfont.test_few_shot --name_ckpt {name_ckpt} ExistingFont.ttf "xyz" --ref_chars ABab
 ```
 
+(Note that the number of reference characters must be the same as was used to train
+the model. By default this is 4, but you can also set a different number of
+reference characters by passing the `--ref_chars` arg to `-m deepvecfont.train`;
+the contents are not significant, only the string length is important.)
+
 The synthesized candidates are in `./experiments/{exp_name}/results/{font_id}/svgs_single`, and the selected results (by IOU) is in `./experiments/{exp_name}/results/{font_id}/svgs_merge`.
 
 In the testing phase, we run the model for `n_samples` times to generate multiple candidates, and in each time a random noise is injected (see [code](https://github.com/yizhiwang96/deepvecfont-v2/blob/c07d1d3a3a9ea491caecc879607c63d59aace1cd/models/transformers.py#L450)). 
