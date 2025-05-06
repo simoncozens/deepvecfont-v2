@@ -125,6 +125,7 @@ def test_main_model(opts, data):
                 img_sample = (1.0 - generated_image[row_idx, ...]).data
                 save_file = img_dir / f"{char_idx:02d}_{opts.img_size}.png"
                 save_image(img_sample, save_file, normalize=True)
+
         # write results w/o parallel refinement
         svg_dec_out = svg_sampled.clone().detach()
         for i, one_seq in enumerate(svg_dec_out):
@@ -146,6 +147,8 @@ def test_main_model(opts, data):
             # write results w/ parallel refinement
         svg_dec_out = sampled_svg_2.clone().detach()
         for i, one_seq in enumerate(svg_dec_out):
+            if i not in result_idxs:
+                continue
             syn_svg_outfile = os.path.join(
                 os.path.join(dir_save, "svgs_single"),
                 f"syn_{i:02d}_{sample_idx}_refined.svg",
