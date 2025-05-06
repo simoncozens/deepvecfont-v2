@@ -18,7 +18,8 @@ dependencies = [
    "timm",
    "scikit-image",
    "cairosvg",
-   "rich"
+   "rich",
+   "tqdm",
 ]
 
 [tool.pylint.'MESSAGES CONTROL']
