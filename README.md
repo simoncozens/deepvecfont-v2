@@ -49,17 +49,14 @@ CUDA_VISIBLE_DEVICES=0 python -m deepvecfont.train --lang chn
 ```
 
 ## Testing (Few-shot Generation)
+
+To generate a target glyph from a TTF file - e.g. to predict the glyphs "xyz" given the reference glyphs "ABab" - run:
+
 English:
 ```
-CUDA_VISIBLE_DEVICES=0 python -m deepvecfont.test_few_shot --batch_size 1 --n_samples 20 --name_ckpt {name_ckpt}
+CUDA_VISIBLE_DEVICES=0 python -m deepvecfont.test_few_shot --name_ckpt {name_ckpt} ExistingFont.ttf "xyz" --ref_chars ABab
 ```
 
-Chinese:
-```
-CUDA_VISIBLE_DEVICES=0 python -m deepvecfont.test_few_shot --name_exp dvf_base_exp_chn --language chn --batch_size 1 --n_samples 50 --ref_nshot 8 --ref_char_ids 0,1,2,3,26,27,28,29 --name_ckpt {name_ckpt}
-```
-
-Note that you can modify `ref_char_ids` to define which characters are used as references.
 The synthesized candidates are in `./experiments/{exp_name}/results/{font_id}/svgs_single`, and the selected results (by IOU) is in `./experiments/{exp_name}/results/{font_id}/svgs_merge`.
 
 In the testing phase, we run the model for `n_samples` times to generate multiple candidates, and in each time a random noise is injected (see [code](https://github.com/yizhiwang96/deepvecfont-v2/blob/c07d1d3a3a9ea491caecc879607c63d59aace1cd/models/transformers.py#L450)). 
@@ -67,23 +64,29 @@ Currently we use IOU as the metric to pick the candidate, which sometimes cannot
 
 ## Customize Dataset
 
-Taking --language 'eng' (English) as an example (it also could be 'chn' (Chinese)):
+First, determine your character set, by placing a txt file in `data/char_set/`
+
+```
+echo "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ" > data/char_set/eng.txt
+echo "कखगघङ..." > data/char_set/deva.txt
+```
+
+Taking --language 'eng' (English) as an example:
 
 ### Step 1: Filter and Package Them into Directories:
 
 Modify `MAX_SEQ_LEN` (the maximum sequence length) in `svg_utils.py`. We set `MAX_SEQ_LEN` to `50` for English and `70` for Chinese. You can also change the number according to your need.
 
 ```
-python -m deepvecfont.data_utils.make_dataset --split train
-python -m deepvecfont.data_utils.make_dataset --split test
+python -m deepvecfont.data_utils.make_dataset --split train --language eng
+python -m deepvecfont.data_utils.make_dataset --split test --language eng
 ```
 
 
-### Step 1.1: Data Augmentation (ONLY for Chinese when training) 
+### Step 2: Data Augmentation (ONLY for Chinese when training) 
 
 ```
 python -m deepvecfont.data_utils.augment --split train --language chn
-python -m deepvecfont.data_utils.augment --split test --language chn
 ```
 
 ## Font Copyrights

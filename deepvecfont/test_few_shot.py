@@ -4,19 +4,67 @@ from pathlib import Path
 import numpy as np
 import torch
 import torch.nn.functional as F
+import torchvision.transforms as T
 from torchvision.utils import save_image
+import tqdm
 
-from deepvecfont.data_utils.svg_utils import render
-from deepvecfont.dataloader import get_loader
+from deepvecfont.data_utils.extract_path import make_hb_font
+from deepvecfont.data_utils.make_dataset import load_font_glyphs, render_glyph
+from deepvecfont.data_utils.relax_rep import cal_aux_bezier_pts, relax_a_character
+from deepvecfont.data_utils.svg_utils import MAX_SEQ_LEN, render
 from deepvecfont.models.model_main import ModelMain
 from deepvecfont.models.transformers import denumericalize
 from deepvecfont.models.util_funcs import cal_iou, svg2img, device
 from deepvecfont.options import get_charset, get_parser_main_model
 
 
-def test_main_model(opts):
+def make_test_font(opts):
+    charset = get_charset(opts)
+    font, upem = make_hb_font(opts.font_path)
+    cur_font_glyphs = load_font_glyphs(
+        charset, opts.font_path, font, upem, missing_ok=True
+    )
+    sequence = []
+    seq_len = []
+    rendered = []
+    relaxed = []
+    for charid, char in enumerate(charset):
+        example = cur_font_glyphs[charid]
+        sequence.append(example["sequence"])
+        assert example["seq_len"][0] <= MAX_SEQ_LEN
+        seq_len.append(example["seq_len"])
+        if example["seq_len"][0] > 0:
+            rendering = render_glyph(font, upem, char, opts.img_size)
+        else:
+            rendering = np.zeros((opts.img_size, opts.img_size), dtype=np.uint8)
+        rendered.append(rendering)
 
-    test_loader = get_loader(opts, 1, mode="test")
+        this_sequence = np.array(example["sequence"]).reshape((MAX_SEQ_LEN + 1), -1)
+        cmd = this_sequence[:, :4]
+        args = this_sequence[:, 4:]
+        relaxed.append(relax_a_character(example["seq_len"][0], cmd, args))
+    item = {}
+    item["seq_len"] = torch.LongTensor(np.array(seq_len))
+    item["sequence"] = (
+        torch.FloatTensor(np.array(relaxed))
+        .reshape(len(charset), -1)
+        .view(1, len(charset), MAX_SEQ_LEN + 1, opts.dim_seq)
+    )
+    pts_aux = cal_aux_bezier_pts(relaxed, len(charset))
+    item["pts_aux"] = torch.FloatTensor(pts_aux)
+    item["rendered"] = (
+        torch.FloatTensor(
+            np.array(rendered).reshape((len(charset), opts.img_size, opts.img_size))
+        )
+        / 255.0
+    )
+    item["rendered"] = T.Lambda(lambda X: 1.0 - X)(item["rendered"])
+    return item
+
+
+def test_main_model(opts, data):
+    opts.mode = "test"
+    opts.batch_size = 1
 
     model_main = ModelMain(opts)
     path_ckpt = os.path.join(
@@ -26,20 +74,12 @@ def test_main_model(opts):
     model_main.to(device)
     model_main.eval()
 
-    with torch.no_grad():
-
-        for test_idx, test_data in enumerate(test_loader):
-            for key in test_data:
-                test_data[key] = test_data[key].to(device)
-
-            test_a_font(opts, model_main, test_idx, test_data)
-
-
-def test_a_font(opts, model_main, test_idx, test_data):
-    print("testing font %04d ..." % test_idx)
     dir_res = os.path.join("./experiments/", opts.name_exp, "results")
-    glyphset_size = len(get_charset(opts))
+    charset = get_charset(opts)
+    glyphset_size = len(charset)
+    test_idx = len(list(Path(dir_res).glob("*")))
     dir_save = Path(dir_res) / f"{test_idx:04d}"
+    print("Writing result to", dir_save)
     svg_merge_dir = dir_save / "svgs_merge"
     img_dir = dir_save / "imgs"
     img_dir.mkdir(parents=True, exist_ok=True)
@@ -53,29 +93,38 @@ def test_a_font(opts, model_main, test_idx, test_data):
         svg_merge_dir / f"{opts.name_ckpt}_syn_merge_{test_idx}.html"
     ).open("w")
 
-    for sample_idx in range(opts.n_samples):
-        ret_dict_test = model_main(test_data, mode="test")[0]
+    result_idxs = [
+        charset.index(ref_id) for ref_id in opts.ref_chars + opts.target_glyphs
+    ]
+    for sample_idx in tqdm.tqdm(range(opts.n_samples)):
+        ret_dict_test = model_main(data, mode="test")[0]
 
         svg_sampled = ret_dict_test["sampled_svg_1"]
         sampled_svg_2 = ret_dict_test["sampled_svg_2"]
         trg_seq_gt = ret_dict_test["target_svg"]
 
-        target_image = ret_dict_test["target_image"]
-        generated_image = ret_dict_test["generated_image"]
+        if sample_idx == 0:
 
-        img_sample_merge = torch.cat((target_image.data, generated_image.data), -2)
-        save_file_merge = os.path.join(dir_save, "imgs", f"merge_{opts.img_size}.png")
-        save_image(img_sample_merge, save_file_merge, nrow=8, normalize=True)
+            target_image = ret_dict_test["target_image"]
+            generated_image = ret_dict_test["generated_image"]
 
-        for char_idx in range(glyphset_size):
-            img_target = (1.0 - target_image[char_idx, ...]).data
-            save_file_target = img_dir / f"{char_idx:02d}_target.png"
-            save_image(img_target, save_file_target, normalize=True)
+            target_image = target_image[result_idxs, ...]
+            generated_image = generated_image[result_idxs, ...]
+            # Zero out the reference characters from the generated image
+            generated_image[0 : len(opts.ref_chars), ...] = 0.0
 
-            img_sample = (1.0 - generated_image[char_idx, ...]).data
-            save_file = img_dir / f"{char_idx:02d}_{opts.img_size}.png"
-            save_image(img_sample, save_file, normalize=True)
+            img_sample_merge = torch.cat((target_image.data, generated_image.data), -2)
+            save_file_merge = os.path.join(dir_save, "imgs", f"merge_{sample_idx}.png")
+            save_image(img_sample_merge, save_file_merge, nrow=8, normalize=True)
 
+            for row_idx, char_idx in enumerate(result_idxs):
+                img_target = (1.0 - target_image[row_idx, ...]).data
+                save_file_target = img_dir / f"{char_idx:02d}_target.png"
+                save_image(img_target, save_file_target, normalize=True)
+
+                img_sample = (1.0 - generated_image[row_idx, ...]).data
+                save_file = img_dir / f"{char_idx:02d}_{opts.img_size}.png"
+                save_image(img_sample, save_file, normalize=True)
         # write results w/o parallel refinement
         svg_dec_out = svg_sampled.clone().detach()
         for i, one_seq in enumerate(svg_dec_out):
@@ -142,11 +191,16 @@ def test_a_font(opts, model_main, test_idx, test_data):
 
 
 def main():
-    opts = get_parser_main_model().parse_args()
+    parser = get_parser_main_model()
+
+    parser.add_argument("font_path", type=str, help="Path to the font file")
+    parser.add_argument("target_glyphs", type=str, help="Target glyphs")
+    opts = parser.parse_args()
     opts.name_exp = opts.name_exp + "_main_model"
+    data = make_test_font(opts)
     print(f"Testing on experiment {opts.name_exp}...")
     # Dump options
-    test_main_model(opts)
+    test_main_model(opts, data)
 
 
 if __name__ == "__main__":
