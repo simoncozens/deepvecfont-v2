@@ -84,7 +84,10 @@ def get_parser_main_model():
     )
     group.add_argument("--lr", type=float, default=0.0002, help="learning rate")
     group.add_argument(
-        "--ref_char_ids", type=str, default="0,1,26,27", help="default is A, B, a, b"
+        "--ref_chars",
+        type=str,
+        default="ABab",
+        help="reference characters for generation",
     )
 
     group.add_argument(

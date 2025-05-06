@@ -26,7 +26,8 @@ class ModelMain(nn.Module):
     def __init__(self, opts):
         super().__init__()
         self.opts = opts
-        self.glyphset_size = len(get_charset(opts))
+        self.charset = get_charset(opts)
+        self.glyphset_size = len(self.charset)
         self.img_encoder = ImageEncoder(
             img_size=opts.img_size,
             input_nc=opts.ref_nshot,
@@ -334,8 +335,7 @@ class ModelMain(nn.Module):
                 .expand(batch_size, -1)
             )
         # Take from ref_char_ids
-        ref_ids = self.opts.ref_char_ids.split(",")
-        ref_ids = list(map(int, ref_ids))
+        ref_ids = [self.charset.index(ref_id) for ref_id in self.opts.ref_chars]
         assert len(ref_ids) == self.opts.ref_nshot
         return (
             torch.tensor(ref_ids).to(device).unsqueeze(0).expand(self.glyphset_size, -1)
