@@ -34,7 +34,6 @@ def get_parser_main_model():
         default=512,
         help="latent code number of bottleneck bits",
     )
-    group.add_argument("--ref_nshot", type=int, default=4, help="reference count")
     group.add_argument("--batch_size", type=int, default=64, help="batch size")
     group.add_argument(
         "--batch_size_val", type=int, default=8, help="batch size when do validation"

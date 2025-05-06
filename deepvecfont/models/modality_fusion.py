@@ -13,9 +13,9 @@ class ModalityFusion(nn.Module):
     def __init__(self, opts, seq_latent_dim=512):
         super().__init__()
         self.bottleneck_bits = opts.bottleneck_bits
-        self.ref_nshot = opts.ref_nshot
+        self.ref_nshot = len(opts.ref_chars)
         self.mode = opts.mode
-        self.fc_merge = nn.Linear(seq_latent_dim * opts.ref_nshot, 512)
+        self.fc_merge = nn.Linear(seq_latent_dim * self.ref_nshot, 512)
         n_downsampling = int(math.log(opts.img_size, 2))
         mult_max = 2 ** (n_downsampling)
         self.fc_fusion = nn.Linear(

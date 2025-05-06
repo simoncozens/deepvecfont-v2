@@ -27,10 +27,11 @@ class ModelMain(nn.Module):
         super().__init__()
         self.opts = opts
         self.charset = get_charset(opts)
+        self.ref_nshot = len(opts.ref_chars)
         self.glyphset_size = len(self.charset)
         self.img_encoder = ImageEncoder(
             img_size=opts.img_size,
-            input_nc=opts.ref_nshot,
+            input_nc=self.ref_nshot,
             ngf=opts.ngf,
             norm_layer=nn.LayerNorm,
         )
@@ -270,7 +271,7 @@ class ModelMain(nn.Module):
         # randomly select ref vector glyphs
         ref_seq = util_funcs.select_seqs(
             input_sequence, reference_class, self.opts.dim_seq_short
-        )  # [opts.batch_size, opts.ref_nshot, opts.max_seq_len, opts.dim_seq_nmr]
+        )  # [opts.batch_size, self.ref_nshot, opts.max_seq_len, opts.dim_seq_nmr]
         # randomly select a target vector glyph
         target_sequence = util_funcs.select_seqs(
             input_sequence, target_class, self.opts.dim_seq_short
@@ -324,19 +325,18 @@ class ModelMain(nn.Module):
         if mode == "train":
             # Choose batch_size x ref_nshot random classes
             return torch.randint(
-                0, self.glyphset_size, (batch_size, self.opts.ref_nshot)
+                0, self.glyphset_size, (batch_size, self.ref_nshot)
             ).to(device)
         if mode == "val":
             # Choose first ref_nshot classes
             return (
-                torch.arange(0, self.opts.ref_nshot, 1)
+                torch.arange(0, self.ref_nshot, 1)
                 .to(device)
                 .unsqueeze(0)
                 .expand(batch_size, -1)
             )
         # Take from ref_char_ids
         ref_ids = [self.charset.index(ref_id) for ref_id in self.opts.ref_chars]
-        assert len(ref_ids) == self.opts.ref_nshot
         return (
             torch.tensor(ref_ids).to(device).unsqueeze(0).expand(self.glyphset_size, -1)
         )
