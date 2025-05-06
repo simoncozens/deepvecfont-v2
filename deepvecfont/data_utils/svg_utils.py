@@ -14,13 +14,10 @@
 
 # Lint as: python3
 """Defines the Material Design Icons Problem."""
-import io
 import re
 from itertools import zip_longest
 
 import numpy as np
-from PIL import Image
-from skimage import draw
 
 SVG_PREFIX_BIG = (
     '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="'
@@ -34,32 +31,14 @@ PATH_POSFIX_1 = '" fill="currentColor"/>'
 SVG_POSFIX = "</svg>"
 
 NUM_ARGS = {
-    "v": 1,
-    "V": 1,
-    "h": 1,
-    "H": 1,
-    "a": 7,
-    "A": 7,
-    "l": 2,
     "L": 2,
-    "t": 2,
-    "T": 2,
-    "c": 6,
     "C": 6,
-    "m": 2,
     "M": 2,
-    "s": 4,
-    "S": 4,
-    "q": 4,
-    "Q": 4,
-    "z": 0,
 }
 # in order of arg complexity, with absolutes clustered
 # recall we don't handle all commands (see docstring)
-CMDS_LIST = "zHVMLTSQCAhvmltsqca"  #  was zhvmltsqcaHVMLTSQCA
+CMDS_LIST = "zMLC"
 CMD_MAPPING = {cmd: i for i, cmd in enumerate(CMDS_LIST)}
-
-FEATURE_DIM = 10
 
 MAX_SEQ_LEN = 50
 
@@ -254,36 +233,17 @@ def _cmd_to_vector(cmd_list, categorical=False):
         command = [0.0] * (len(CMDS_LIST) + 1)
         command[CMD_MAPPING[cmd] + 1] = 1.0
 
-    arguments = [0.0] * 10
-    if cmd in "hH":
-        arguments[8] = float(args[0])  # x
-    elif cmd in "vV":
-        arguments[9] = float(args[0])  # y
-    elif cmd in "mMlLtT":
-        arguments[8] = float(args[0])  # x
-        arguments[9] = float(args[1])  # y
-    elif cmd in "sSqQ":
-        arguments[6] = float(args[0])  # x2
-        arguments[7] = float(args[1])  # y2
-        arguments[8] = float(args[2])  # x
-        arguments[9] = float(args[3])  # y
+    arguments = [0.0] * 6
+    if cmd in "mMlL":
+        arguments[0] = float(args[0])  # x
+        arguments[1] = float(args[1])  # y
     elif cmd in "cC":
-        arguments[4] = float(args[0])  # x1
-        arguments[5] = float(args[1])  # y1
-        arguments[6] = float(args[2])  # x2
-        arguments[7] = float(args[3])  # y2
-        arguments[8] = float(args[4])  # x
-        arguments[9] = float(args[5])  # y
-    elif cmd in "aA":
-        arguments[0] = float(args[0])  # rx
-        arguments[1] = float(args[1])  # ry
-        # we skip x-axis-rotation
-        arguments[2] = float(args[3])  # large-arc-flag
-        arguments[3] = float(args[4])  # sweep-flag
-        # a does not have x1, y1, x2, y2 args
-        arguments[8] = float(args[5])  # x
-        arguments[9] = float(args[6])  # y
-
+        arguments[0] = float(args[0])  # x1
+        arguments[1] = float(args[1])  # y1
+        arguments[2] = float(args[2])  # x2
+        arguments[3] = float(args[3])  # y2
+        arguments[4] = float(args[4])  # x
+        arguments[5] = float(args[5])  # y
     return command + arguments
 
 
@@ -379,35 +339,16 @@ def _vector_to_cmd(vector, categorical=False, return_floats=False):
     cmd = cmd.upper()
     cmd_list = [cmd]
 
-    if cmd in "hH":
-        cmd_list.append(cast_fn(arguments[8]))  # x
-    elif cmd in "vV":
-        cmd_list.append(cast_fn(arguments[9]))  # y
-    elif cmd in "mMlLtT":
-        cmd_list.append(cast_fn(arguments[8]))  # x
-        cmd_list.append(cast_fn(arguments[9]))  # y
-    elif cmd in "sSqQ":
-        cmd_list.append(cast_fn(arguments[6]))  # x2
-        cmd_list.append(cast_fn(arguments[7]))  # y2
-        cmd_list.append(cast_fn(arguments[8]))  # x
-        cmd_list.append(cast_fn(arguments[9]))  # y
+    if cmd in "ML":
+        cmd_list.append(cast_fn(arguments[-2]))  # x
+        cmd_list.append(cast_fn(arguments[-1]))  # y
     elif cmd in "cC":
-        cmd_list.append(cast_fn(arguments[4]))  # x1
-        cmd_list.append(cast_fn(arguments[5]))  # y1
-        cmd_list.append(cast_fn(arguments[6]))  # x2
-        cmd_list.append(cast_fn(arguments[7]))  # y2
-        cmd_list.append(cast_fn(arguments[8]))  # x
-        cmd_list.append(cast_fn(arguments[9]))  # y
-    elif cmd in "aA":
-        cmd_list.append(cast_fn(arguments[0]))  # rx
-        cmd_list.append(cast_fn(arguments[1]))  # ry
-        # x-axis-rotation is always 0
-        cmd_list.append(cast_fn("0"))
-        # the following two flags are binary.
-        cmd_list.append(cast_fn(1 if arguments[2] > 0.5 else 0))  # large-arc-flag
-        cmd_list.append(cast_fn(1 if arguments[3] > 0.5 else 0))  # sweep-flag
-        cmd_list.append(cast_fn(arguments[8]))  # x
-        cmd_list.append(cast_fn(arguments[9]))  # y
+        cmd_list.append(cast_fn(arguments[-6]))  # x1
+        cmd_list.append(cast_fn(arguments[-5]))  # y1
+        cmd_list.append(cast_fn(arguments[-4]))  # x2
+        cmd_list.append(cast_fn(arguments[-3]))  # y2
+        cmd_list.append(cast_fn(arguments[-2]))  # x
+        cmd_list.append(cast_fn(arguments[-1]))  # y
 
     return cmd_list
 
@@ -682,10 +623,7 @@ def create_example(pathunibfp, upem):
     vector = np.array(vector)
     if vector.shape[0] == 0:
         vector = vector.reshape((0, 10))
-    else:
-        vector = np.concatenate(
-            [np.take(vector, [0, 4, 5, 9], axis=-1), vector[..., -6:]], axis=-1
-        )
+    vector = _normalize_to_upem(vector, upem)
 
     # count some stats
     final["seq_len"] = np.shape(vector)[0]
@@ -746,9 +684,6 @@ def clockwise(seq):
     ret = {}
     vector = _path_to_vector(path, categorical=True)
     vector = np.array(vector)
-    vector = np.concatenate(
-        [np.take(vector, [0, 4, 5, 9], axis=-1), vector[..., -6:]], axis=-1
-    )
     ret["seq_len"] = np.shape(vector)[0]
     vector = _append_eos(vector.tolist(), True, 10)
     ret["sequence"] = np.concatenate((vector, np.zeros(((70 - ret["seq_len"]), 10))), 0)

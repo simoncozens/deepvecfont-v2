@@ -160,7 +160,7 @@ def load_font_glyphs(charset, font_path, font, upem, missing_ok=False):
         good_paths.append(pathunibfp)
 
     # Now we know the whole font is valid, we can process all glyphs
-    return [svg_utils.create_example(pathunibfp) for pathunibfp in good_paths]
+    return [svg_utils.create_example(pathunibfp, upem) for pathunibfp in good_paths]
 
 
 def cal_mean_stddev(opts, output_path):

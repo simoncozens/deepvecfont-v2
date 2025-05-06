@@ -26,7 +26,8 @@ def cal_aux_bezier_pts(font_seq, n_chars):
         for k in range(MAX_SEQ_LEN):
             stroke_seq = char_seq[k]
             stroke_cmd = np.argmax(stroke_seq[:4], -1)
-            stroke_seq[4:] = denumericalize(numericalize(stroke_seq[4:], n=64), n=64)
+            # We're not gonna quantize it
+            # stroke_seq[4:] = denumericalize(numericalize(stroke_seq[4:], n=64), n=64)
             p0, p1, p2, p3 = (
                 stroke_seq[4:6],
                 stroke_seq[6:8],
