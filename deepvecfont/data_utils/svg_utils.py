@@ -617,6 +617,7 @@ def postprocess(svg, dist_thresh=2.0, skip=False):
         " ".join([" ".join(" ".join(cmd) for cmd in s) for s in substructures])
     )
 
+
 def render(tensor, data_dir=None):
     """Converts SVG decoder output into HTML svg."""
     # undo normalization
@@ -659,32 +660,13 @@ def create_image_conversion_fn(max_outputs, categorical=False):
     return convert_to_svg
 
 
-################### UTILS FOR CREATING TF SUMMARIES ##########################
-def _make_encoded_image(img_tensor):
-    pil_img = Image.fromarray(np.squeeze(img_tensor * 255).astype(np.uint8), mode="L")
-    buff = io.BytesIO()
-    pil_img.save(buff, format="png")
-    encoded_image = buff.getvalue()
-    return encoded_image
-
-
 ################### CHECK GLYPH/PATH VALID ##############################################
-def is_valid_glyph(g):
-    is_09 = 48 <= g["uni"] <= 57
-    is_capital_az = 65 <= g["uni"] <= 90
-    is_az = 97 <= g["uni"] <= 122
-    is_valid_dims = g["width"] != 0 and g["vwidth"] != 0
-    return (is_09 or is_capital_az or is_az) and is_valid_dims
-
-
 def is_valid_path(pathunibfp):
     return pathunibfp[0] and len(pathunibfp[0]) <= MAX_SEQ_LEN
 
 
 ################### DATASET PROCESSING #######################################
-
-
-def create_example(pathunibfp):
+def create_example(pathunibfp, upem):
     """Bulk of dataset processing. Converts str path to np array"""
     path, uni, binary_fp = pathunibfp
     final = {}
@@ -724,22 +706,6 @@ def create_example(pathunibfp):
     )
     final["seq_len"] = np.reshape(final["seq_len"], [1]).astype(np.int64).tolist()
     return final
-
-
-def mean_to_example(mean_stdev):
-    """Converts the found mean and stdev to example."""
-    # mean_stdev is a dict
-    mean_stdev["mean"] = (
-        np.reshape(mean_stdev["mean"], [10]).astype(np.float32).tolist()
-    )
-    mean_stdev["variance"] = (
-        np.reshape(mean_stdev["variance"], [10]).astype(np.float32).tolist()
-    )
-    mean_stdev["stddev"] = (
-        np.reshape(mean_stdev["stddev"], [10]).astype(np.float32).tolist()
-    )
-    mean_stdev["count"] = np.reshape(mean_stdev["count"], [1]).astype(np.int64).tolist()
-    return mean_stdev
 
 
 def convert_simple_vector_to_path(seq):
