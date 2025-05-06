@@ -776,12 +776,14 @@ def subsequent_mask(size):
 def numericalize(cmd, n=128):
     """NOTE: shall only be called after normalization"""
     # assert np.max(cmd.origin) <= 1.0 and np.min(cmd.origin) >= -1.0
-    cmd = (cmd / 30 * n).round().clip(min=0, max=n - 1).int()
+    # Arguments are in fractions of an upem; they may be negative (below baseline),
+    # but XXX we currently don't handle that.
+    cmd = (cmd * n).round().clip(min=0, max=n - 1).int()
     return cmd
 
 
 def denumericalize(cmd, n=128):
-    cmd = cmd / n * 30
+    cmd = cmd / n
     return cmd
 
 
